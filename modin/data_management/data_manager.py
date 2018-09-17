@@ -36,12 +36,12 @@ class PandasDataManager(object):
 
     def _get_dtype(self):
         if self._dtype_cache is None:
-            map_func = lambda df: df.dtypes
 
-            def func(row):
-                return find_common_type(row.values)
+            map_func = self._prepare_method(lambda df: df.dtypes)
+            def dtype_builder(df):
+                return df.apply(lambda row: find_common_type(row.values), axis=0)
 
-            self._dtype_cache = self.data.full_reduce(map_func, lambda df: df.apply(func, axis=0), 0)
+            self._dtype_cache = self.data.full_reduce(map_func, dtype_builder, 0)
             self._dtype_cache.index = self.columns
         return self._dtype_cache
 
@@ -140,8 +140,8 @@ class PandasDataManager(object):
         return helper
 
     def numeric_indices(self):
-        """Returns the numeric indices
-
+        """Returns the numeric columns
+        
         Args:
             axis: The axis to extract the indices from.
 
@@ -560,12 +560,26 @@ class PandasDataManager(object):
     # we will implement a Distributed Series, and this will be returned
     # instead.
     def full_reduce(self, axis, map_func, reduce_func=None, numeric_only=False):
+        """Apply functions that will reduce the data to a pandas Series
+
+        Args:
+            axis: {'0' - columns, '1' - rows}
+            map_func: Callable function to map the dataframe
+            reduce_func: Callable function to reduce the dataframe. If none,
+            then apply map_func twice
+            numeric_only: Apply only over the numeric rows
+
+        Return:
+            pandas series containing the results from map_func and reduce_func
+        """
         if numeric_only:
             index = self.numeric_indices()
             if len(index) == 0:
                 return pandas.Series(dtype=np.float64)
-            nonnumeric = [col for col, dtype in zip(self.columns, self.dtypes) if not is_numeric_dtype(dtype)]
             if axis:
+                nonnumeric = [col for col, dtype in zip(self.columns, self.dtypes) if not is_numeric_dtype(dtype)]
+                if len(nonnumeric) == 0:
+                    return pandas.Series([np.NaN for _ in self.columns)
                 return self.drop(columns=nonnumeric).full_reduce(axis, map_func)
         else:
             if not axis:
@@ -583,6 +597,15 @@ class PandasDataManager(object):
         return result
 
     def count(self, **kwargs):
+        """Counts the number of non-NaN objects by the requested axis
+
+        Args:
+            axis: 0 for columns and 1 for rows. Default is 0
+            numeric_only: If true, only considers numerical columns
+
+        Return:
+            Pandas series containing the counts of non-NaN objects
+        """
         axis = kwargs.get("axis", 0)
         numeric_only = kwargs.get("numeric_only", False)
         map_func = self._prepare_method(pandas.DataFrame.count, **kwargs)
@@ -590,6 +613,15 @@ class PandasDataManager(object):
         return self.full_reduce(axis, map_func, reduce_func, numeric_only)
 
     def max(self, **kwargs):
+        """Returns the maximum value by the requested axis
+
+        Args:
+            axis: 0 for columns and 1 for rows. Default is 0
+            numeric_only: If true, only considers numerical columns
+
+        Return:
+            Pandas series with the maximum values
+        """
         # Pandas default is 0 (though not mentioned in docs)
         axis = kwargs.get("axis", 0)
         numeric_only = True if axis else kwargs.get("numeric_only", False)
@@ -597,6 +629,16 @@ class PandasDataManager(object):
         return self.full_reduce(axis, func, numeric_only=numeric_only)
 
     def mean(self, **kwargs):
+        """Returns the mean value by the requested axis. Only considers the 
+        numerical columns
+
+        Args:
+            axis: 0 for columns and 1 for rows. Default is 0
+            numeric_only: If true, only considers numerical columns
+
+        Return:
+            Pandas series containing the means
+        """
         # Pandas default is 0 (though not mentioned in docs)
         axis = kwargs.get("axis", 0)
         new_index = self.numeric_indices()
@@ -610,6 +652,15 @@ class PandasDataManager(object):
         return self.full_reduce(axis, func, numeric_only=True)
 
     def min(self, **kwargs):
+        """Returns the minimum value by the requested axis
+
+        Args:
+            axis: 0 for columns and 1 for rows. Default is 0
+            numeric_only: If true, only considers numerical columns
+
+        Return:
+            Pandas series with the minimum values
+        """
         # Pandas default is 0 (though not mentioned in docs)
         axis = kwargs.get("axis", 0)
         numeric_only = True if axis else kwargs.get("numeric_only", False)
@@ -617,6 +668,16 @@ class PandasDataManager(object):
         return self.full_reduce(axis, func, numeric_only=numeric_only)
 
     def prod(self, **kwargs):
+        """Returns the product by the requested axis. Only considers numerical 
+        columns
+
+        Args:
+            axis: 0 for columns and 1 for rows. Default is 0
+            numeric_only: If true, only considers numerical columns
+
+        Return:
+            Pandas series with the products by the requested axis
+        """
         # Pandas default is 0 (though not mentioned in docs)
         axis = kwargs.get("axis", 0)
         index = self.index if axis else self.columns
@@ -624,6 +685,16 @@ class PandasDataManager(object):
         return self.full_reduce(axis, func, numeric_only=True)
 
     def sum(self, **kwargs):
+        """Returns the sum by the requested axis. Only considers numerical 
+        columns
+
+        Args:
+            axis: 0 for columns and 1 for rows. Default is 0
+            numeric_only: If true, only considers numerical columns
+
+        Return:
+            Pandas series with the sum by the requested axis
+        """
         # Pandas default is 0 (though not mentioned in docs)
         axis = kwargs.get("axis", 0)
         numeric_only = True if axis else kwargs.get("numeric_only", False)
@@ -687,6 +758,17 @@ class PandasDataManager(object):
     # we will implement a Distributed Series, and this will be returned
     # instead.
     def full_axis_reduce(self, func, axis):
+        """Reduces the dataframe to a series but the function requires full
+        knowledge of a given axis
+
+        Args: 
+            func: function to reduce the dataframe by. This function takes
+            in a dataframe.
+        
+        Return:
+            Pandas series containing the reduced data
+
+        """
         result = self.data.map_across_full_axis(axis, func).to_pandas(self._is_transposed)
 
         if not axis:
@@ -697,6 +779,14 @@ class PandasDataManager(object):
         return result
 
     def all(self, **kwargs):
+        """Determines if all the values with respect to a certain axis is true.
+
+        Args:
+            axis: 0 for columns and 1 for rows. Defaults to 0
+
+        Return: 
+            Pandas Series containing boolean values
+        """
         axis = kwargs.get("axis", 0)
         func = self._prepare_method(pandas.DataFrame.all, **kwargs)
         return self.full_axis_reduce(func, axis)
@@ -816,6 +906,8 @@ class PandasDataManager(object):
 
         axis = 0
 
+        # Only describe numeric if there are numeric 
+        # Otherwise, describe all
         new_index = self.numeric_indices()
         if len(new_index) != 0:
             numeric = True
@@ -827,6 +919,7 @@ class PandasDataManager(object):
         def describe_builder(df, internal_indices=[], **kwargs):
             return pandas.DataFrame.describe(df, **kwargs)
 
+        # Apply describe and update indices, columns, and dtypes
         func = self._prepare_method(describe_builder, **kwargs)
         new_data = self.full_axis_reduce_along_select_indices(func, 0, new_index, False)
         new_index = self.compute_index(0, new_data, False)
@@ -1136,20 +1229,25 @@ class PandasDataManager(object):
     def astype(self, col_dtypes, errors='raise', **kwargs):
 
 
-        # Group the indicies to update together and create new dtypes series
+        # Group indices to update by dtype for less map operations
         dtype_indices = dict()
         columns = col_dtypes.keys()
-        new_dtypes = self.dtypes.copy()
-
         numeric_indices = list(self.columns.get_indexer_for(columns))
 
+        # Create Series for the updated dtypes
+        new_dtypes = self.dtypes.copy()
+
         for i, column in enumerate(columns):
+
             dtype = col_dtypes[column]
             if dtype != self.dtypes[column]:
+                # Only add dtype only if different
                 if dtype in dtype_indices.keys():
                     dtype_indices[dtype].append(numeric_indices[i])
                 else:
                     dtype_indices[dtype] = [numeric_indices[i]]
+
+                # Update the new dtype series to the proper pandas dtype
                 new_dtype = np.dtype(dtype)
                 if dtype != np.int32 and new_dtype == np.int32:
                     new_dtype = np.dtype('int64')
@@ -1157,9 +1255,9 @@ class PandasDataManager(object):
                     new_dtype = np.dtype('float64')
                 new_dtypes[column] = new_dtype
 
+        # Update partitions for each dtype that is updated
         new_data = self.data
         for dtype in dtype_indices.keys():
-            resulting_dtype = None
 
             def astype(df, internal_indices=[]):
                 block_dtypes = dict()

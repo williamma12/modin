@@ -140,7 +140,7 @@ class PandasDataManager(object):
         return helper
 
     def numeric_indices(self):
-        """Returns the numeric columns of the DataFrame
+        """Returns the numeric columns of the DataFrame.
         
         Args:
             axis: The axis to extract the indices from.
@@ -687,7 +687,7 @@ class PandasDataManager(object):
 
         Args:
             axis: 0 for columns and 1 for rows. Default is 0
-            numeric_only: If true, only considers numerical columns
+            numeric_only: If true, only considers numerical columns.
 
         Return:
             Pandas series with the sum of each numerical column or row.
@@ -758,11 +758,10 @@ class PandasDataManager(object):
         """Applies function that reduces a dataframe to a series and require knowledge of the full axis.
 
         Args: 
-            func: Function to reduce the dataframe by. This function takes
-            in a dataframe.
+            func: Function to reduce the dataframe by. This function takes in a dataframe.
         
         Return:
-            Pandas series containing the reduced data
+            Pandas series containing the reduced data.
         """
         result = self.data.map_across_full_axis(axis, func).to_pandas(self._is_transposed)
 
@@ -780,20 +779,20 @@ class PandasDataManager(object):
             axis: 0 for columns and 1 for rows. Defaults to 0.
 
         Return: 
-            Pandas Series containing boolean values
+            Pandas Series containing boolean values.
         """
         axis = kwargs.get("axis", 0)
         func = self._prepare_method(pandas.DataFrame.all, **kwargs)
         return self.full_axis_reduce(func, axis)
 
     def any(self, **kwargs):
-        """Returns whether any element is true over the requested axis
+        """Returns whether any element is true over the requested axis.
 
         Args:
             axis: 0 for columns and 1 for rows. Defaults to 0.
             
         Return:
-            Pandas Series containing boolean values
+            Pandas Series containing boolean values.
         """
         axis = kwargs.get("axis", 0)
         func = self._prepare_method(pandas.DataFrame.any, **kwargs)
@@ -805,7 +804,7 @@ class PandasDataManager(object):
         Args:
             
         Return:
-            Scalar of index name
+            Scalar of index name.
         """
         # It may be possible to incrementally check each partition, but this
         # computation is fairly cheap.
@@ -821,7 +820,7 @@ class PandasDataManager(object):
         return self.index[first_result.min()]
 
     def _post_process_idx_ops(self, axis, intermediate_result):
-        """Converts internal index to external index
+        """Converts internal index to external index.
 
         Args:
             axis: 0 for columns and 1 for rows. Defaults to 0.
@@ -835,12 +834,12 @@ class PandasDataManager(object):
         return result
 
     def idxmax(self, **kwargs):
-        """Returns the first occurance of the maximum over requested axis
+        """Returns the first occurance of the maximum over requested axis.
 
         Args:
             
         Returns:
-            Series containing the maximum of each column or axis
+            Series containing the maximum of each column or axis.
         """
         # The reason for the special treatment with idxmax/min is because we
         # need to communicate the row number back here.
@@ -856,12 +855,12 @@ class PandasDataManager(object):
         return self._post_process_idx_ops(axis, max_result)
 
     def idxmin(self, **kwargs):
-        """Returns the first occurance of the minimum over requested axis
+        """Returns the first occurance of the minimum over requested axis.
 
         Args:
             
         Returns:
-            Series containing the minimum of each column or axis
+            Series containing the minimum of each column or axis.
         """
         # The reason for the special treatment with idxmax/min is because we
         # need to communicate the row number back here.
@@ -882,7 +881,7 @@ class PandasDataManager(object):
         Args:
             
         Return:
-            Scalar of index name
+            Scalar of index name.
         """
         def last_valid_index_builder(df):
             df.index = pandas.RangeIndex(len(df.index))
@@ -896,12 +895,12 @@ class PandasDataManager(object):
         return self.index[first_result.max()]
 
     def memory_usage(self, **kwargs):
-        """Returns the memory usage of each column
+        """Returns the memory usage of each column.
 
         Args:
 
         Returns:
-            Series containing the memory usage of each column
+            Series containing the memory usage of each column.
         """
         def memory_usage_builder(df, **kwargs):
             return df.memory_usage(index=False, deep=deep)
@@ -911,7 +910,7 @@ class PandasDataManager(object):
         return self.full_axis_reduce(func, 0)
 
     def nunique(self, **kwargs):
-        """Returns the number of unique items over each column or row
+        """Returns the number of unique items over each column or row.
 
         Args:
 
@@ -923,12 +922,12 @@ class PandasDataManager(object):
         return self.full_axis_reduce(func, axis)
 
     def to_datetime(self, **kwargs):
-        """Converts the DataFrame to a Series of DateTime objects
+        """Converts the DataFrame to a Series of DateTime objects.
 
         Args:
 
         Returns:
-            Series of DateTime objects
+            Series of DateTime objects.
         """
         columns = self.columns
         def to_datetime_builder(df, **kwargs):
@@ -948,7 +947,7 @@ class PandasDataManager(object):
         """Reduces DataFrame along select indices using a function that requires full knowledge of axis.
 
         Args:
-            func: Callable that reduces DataFrames to Series using full knowledge of an axis
+            func: Callable that reduces DataFrames to Series using full knowledge of an axis.
             axis: 0 for columns and 1 for rows. Defaults to 0.
             index: Index of the resulting series.
             pandas_result: Return the result as a Pandas Series instead of raw data.
@@ -1341,7 +1340,7 @@ class PandasDataManager(object):
         Args:
             col_dtypes: Dictionary of {col: dtype,...} where col is the column
             name and dtype is a numpy dtype.
-            errors: Controlling the raising of errors
+            errors: Controlling the raising of errors.
 
         Returns:
             DataFrame with updated dtypes.

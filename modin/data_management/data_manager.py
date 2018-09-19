@@ -140,13 +140,13 @@ class PandasDataManager(object):
         return helper
 
     def numeric_indices(self):
-        """Returns the numeric columns
+        """Returns the numeric columns of the DataFrame
         
         Args:
             axis: The axis to extract the indices from.
 
         Returns:
-            List of index names
+            List of index names.
         """
         columns = list()
         for col, dtype in zip(self.columns, self.dtypes):
@@ -560,17 +560,17 @@ class PandasDataManager(object):
     # we will implement a Distributed Series, and this will be returned
     # instead.
     def full_reduce(self, axis, map_func, reduce_func=None, numeric_only=False):
-        """Apply functions that will reduce the data to a pandas Series
+        """Apply function that will reduce the data to a Pandas Series.
 
         Args:
-            axis: {'0' - columns, '1' - rows}
-            map_func: Callable function to map the dataframe
+            axis: 0 for columns and 1 for rows. Default is 0.
+            map_func: Callable function to map the dataframe.
             reduce_func: Callable function to reduce the dataframe. If none,
-            then apply map_func twice
-            numeric_only: Apply only over the numeric rows
+            then apply map_func twice.
+            numeric_only: Apply only over the numeric rows.
 
         Return:
-            pandas series containing the results from map_func and reduce_func
+            Returns Pandas Series containing the results from map_func and reduce_func.
         """
         if numeric_only:
             index = self.numeric_indices()
@@ -597,14 +597,14 @@ class PandasDataManager(object):
         return result
 
     def count(self, **kwargs):
-        """Counts the number of non-NaN objects by the requested axis
+        """Counts the number of non-NaN objects for each column or row.
 
         Args:
-            axis: 0 for columns and 1 for rows. Default is 0
-            numeric_only: If true, only considers numerical columns
+            axis: 0 for columns and 1 for rows. Default is 0.
+            numeric_only: If true, only considers numerical columns.
 
         Return:
-            Pandas series containing the counts of non-NaN objects
+            Pandas series containing the counts of non-NaN objects from each column or row.
         """
         axis = kwargs.get("axis", 0)
         numeric_only = kwargs.get("numeric_only", False)
@@ -613,14 +613,14 @@ class PandasDataManager(object):
         return self.full_reduce(axis, map_func, reduce_func, numeric_only)
 
     def max(self, **kwargs):
-        """Returns the maximum value by the requested axis
+        """Returns the maximum value for each column or row.
 
         Args:
-            axis: 0 for columns and 1 for rows. Default is 0
-            numeric_only: If true, only considers numerical columns
+            axis: 0 for columns and 1 for rows. Default is 0.
+            numeric_only: If true, only considers numerical columns.
 
         Return:
-            Pandas series with the maximum values
+            Pandas series with the maximum values from each column or row.
         """
         # Pandas default is 0 (though not mentioned in docs)
         axis = kwargs.get("axis", 0)
@@ -629,15 +629,14 @@ class PandasDataManager(object):
         return self.full_reduce(axis, func, numeric_only=numeric_only)
 
     def mean(self, **kwargs):
-        """Returns the mean value by the requested axis. Only considers the 
-        numerical columns
+        """Returns the mean for each numerical column or row.
 
         Args:
-            axis: 0 for columns and 1 for rows. Default is 0
-            numeric_only: If true, only considers numerical columns
+            axis: 0 for columns and 1 for rows. Default is 0.
+            numeric_only: If true, only considers numerical columns.
 
         Return:
-            Pandas series containing the means
+            Pandas series containing the mean from each numerical column or row.
         """
         # Pandas default is 0 (though not mentioned in docs)
         axis = kwargs.get("axis", 0)
@@ -652,14 +651,14 @@ class PandasDataManager(object):
         return self.full_reduce(axis, func, numeric_only=True)
 
     def min(self, **kwargs):
-        """Returns the minimum value by the requested axis
+        """Returns the minimum from each column or row.
 
         Args:
-            axis: 0 for columns and 1 for rows. Default is 0
-            numeric_only: If true, only considers numerical columns
+            axis: 0 for columns and 1 for rows. Default is 0.
+            numeric_only: If true, only considers numerical columns.
 
         Return:
-            Pandas series with the minimum values
+            Pandas series with the minimum value from each column or row.
         """
         # Pandas default is 0 (though not mentioned in docs)
         axis = kwargs.get("axis", 0)
@@ -668,15 +667,14 @@ class PandasDataManager(object):
         return self.full_reduce(axis, func, numeric_only=numeric_only)
 
     def prod(self, **kwargs):
-        """Returns the product by the requested axis. Only considers numerical 
-        columns
+        """Returns the product of each numerical column or row.
 
         Args:
-            axis: 0 for columns and 1 for rows. Default is 0
-            numeric_only: If true, only considers numerical columns
+            axis: 0 for columns and 1 for rows. Default is 0.
+            numeric_only: If true, only considers numerical columns.
 
         Return:
-            Pandas series with the products by the requested axis
+            Pandas series with the product of each numerical column or row.
         """
         # Pandas default is 0 (though not mentioned in docs)
         axis = kwargs.get("axis", 0)
@@ -685,15 +683,14 @@ class PandasDataManager(object):
         return self.full_reduce(axis, func, numeric_only=True)
 
     def sum(self, **kwargs):
-        """Returns the sum by the requested axis. Only considers numerical 
-        columns
+        """Returns the sum of each numerical column or row.
 
         Args:
             axis: 0 for columns and 1 for rows. Default is 0
             numeric_only: If true, only considers numerical columns
 
         Return:
-            Pandas series with the sum by the requested axis
+            Pandas series with the sum of each numerical column or row.
         """
         # Pandas default is 0 (though not mentioned in docs)
         axis = kwargs.get("axis", 0)
@@ -758,16 +755,14 @@ class PandasDataManager(object):
     # we will implement a Distributed Series, and this will be returned
     # instead.
     def full_axis_reduce(self, func, axis):
-        """Reduces the dataframe to a series but the function requires full
-        knowledge of a given axis
+        """Applies function that reduces a dataframe to a series and require knowledge of the full axis.
 
         Args: 
-            func: function to reduce the dataframe by. This function takes
+            func: Function to reduce the dataframe by. This function takes
             in a dataframe.
         
         Return:
             Pandas series containing the reduced data
-
         """
         result = self.data.map_across_full_axis(axis, func).to_pandas(self._is_transposed)
 
@@ -779,10 +774,10 @@ class PandasDataManager(object):
         return result
 
     def all(self, **kwargs):
-        """Determines if all the values with respect to a certain axis is true.
+        """Returns whether all the elements are true, potentially over an axis.
 
         Args:
-            axis: 0 for columns and 1 for rows. Defaults to 0
+            axis: 0 for columns and 1 for rows. Defaults to 0.
 
         Return: 
             Pandas Series containing boolean values
@@ -792,12 +787,26 @@ class PandasDataManager(object):
         return self.full_axis_reduce(func, axis)
 
     def any(self, **kwargs):
+        """Returns whether any element is true over the requested axis
+
+        Args:
+            axis: 0 for columns and 1 for rows. Defaults to 0.
+            
+        Return:
+            Pandas Series containing boolean values
+        """
         axis = kwargs.get("axis", 0)
         func = self._prepare_method(pandas.DataFrame.any, **kwargs)
         return self.full_axis_reduce(func, axis)
 
     def first_valid_index(self):
+        """Returns index of first non-NaN/NULL value.
 
+        Args:
+            
+        Return:
+            Scalar of index name
+        """
         # It may be possible to incrementally check each partition, but this
         # computation is fairly cheap.
         def first_valid_index_builder(df):
@@ -812,12 +821,27 @@ class PandasDataManager(object):
         return self.index[first_result.min()]
 
     def _post_process_idx_ops(self, axis, intermediate_result):
+        """Converts internal index to external index
+
+        Args:
+            axis: 0 for columns and 1 for rows. Defaults to 0.
+            intermediate_result: Internal index of self.data.
+
+        Returns:
+            External index of the intermediate_result.
+        """
         index = self.index if not axis else self.columns
         result = intermediate_result.apply(lambda x: index[x])
         return result
 
     def idxmax(self, **kwargs):
+        """Returns the first occurance of the maximum over requested axis
 
+        Args:
+            
+        Returns:
+            Series containing the maximum of each column or axis
+        """
         # The reason for the special treatment with idxmax/min is because we
         # need to communicate the row number back here.
         def idxmax_builder(df, **kwargs):
@@ -832,7 +856,13 @@ class PandasDataManager(object):
         return self._post_process_idx_ops(axis, max_result)
 
     def idxmin(self, **kwargs):
+        """Returns the first occurance of the minimum over requested axis
 
+        Args:
+            
+        Returns:
+            Series containing the minimum of each column or axis
+        """
         # The reason for the special treatment with idxmax/min is because we
         # need to communicate the row number back here.
         def idxmin_builder(df, **kwargs):
@@ -847,7 +877,13 @@ class PandasDataManager(object):
         return self._post_process_idx_ops(axis, min_result)
 
     def last_valid_index(self):
+        """Returns index of last non-NaN/NULL value.
 
+        Args:
+            
+        Return:
+            Scalar of index name
+        """
         def last_valid_index_builder(df):
             df.index = pandas.RangeIndex(len(df.index))
             return df.apply(lambda df: df.last_valid_index())
@@ -860,6 +896,13 @@ class PandasDataManager(object):
         return self.index[first_result.max()]
 
     def memory_usage(self, **kwargs):
+        """Returns the memory usage of each column
+
+        Args:
+
+        Returns:
+            Series containing the memory usage of each column
+        """
         def memory_usage_builder(df, **kwargs):
             return df.memory_usage(index=False, deep=deep)
 
@@ -868,11 +911,25 @@ class PandasDataManager(object):
         return self.full_axis_reduce(func, 0)
 
     def nunique(self, **kwargs):
+        """Returns the number of unique items over each column or row
+
+        Args:
+
+        Returns:
+            Series of ints indexed by column or index names.
+        """
         axis = kwargs.get("axis", 0)
         func = self._prepare_method(pandas.DataFrame.nunique, **kwargs)
         return self.full_axis_reduce(func, axis)
 
     def to_datetime(self, **kwargs):
+        """Converts the DataFrame to a Series of DateTime objects
+
+        Args:
+
+        Returns:
+            Series of DateTime objects
+        """
         columns = self.columns
         def to_datetime_builder(df, **kwargs):
             df.columns = columns
@@ -888,6 +945,17 @@ class PandasDataManager(object):
     # we will implement a Distributed Series, and this will be returned
     # instead.
     def full_axis_reduce_along_select_indices(self, func, axis, index, pandas_result=True):
+        """Reduces DataFrame along select indices using a function that requires full knowledge of axis.
+
+        Args:
+            func: Callable that reduces DataFrames to Series using full knowledge of an axis
+            axis: 0 for columns and 1 for rows. Defaults to 0.
+            index: Index of the resulting series.
+            pandas_result: Return the result as a Pandas Series instead of raw data.
+            
+        Returns:
+            Either a Pandas Series with index or BlockPartitions object.
+        """
         # Convert indices to numeric indices
         old_index = self.index if axis else self.columns
         numeric_indices = [i for i, name in enumerate(old_index) if name in index]
@@ -903,7 +971,13 @@ class PandasDataManager(object):
         return result
 
     def describe(self, **kwargs):
+        """Generates descriptive statistics.
 
+        Args:
+
+        Returns:
+            DataFrame object containing the descriptive statistics of the DataFrame.
+        """
         axis = 0
 
         # Only describe numeric if there are numeric 
@@ -932,6 +1006,13 @@ class PandasDataManager(object):
         return self.__constructor__(new_data, new_index, new_columns, new_dtypes)
 
     def median(self, **kwargs):
+        """Returns median of each column or row.
+
+        Args:
+
+        Returns:
+            Series containing the median of each column or row.
+        """
         # Pandas default is 0 (though not mentioned in docs)
         axis = kwargs.get("axis", 0)
 
@@ -946,6 +1027,13 @@ class PandasDataManager(object):
         return self.full_axis_reduce_along_select_indices(func, axis, new_index)
 
     def skew(self, **kwargs):
+        """Returns skew of each column or row.
+
+        Args:
+
+        Returns:
+            Series containing the skew of each column or row.
+        """
         # Pandas default is 0 (though not mentioned in docs)
         axis = kwargs.get("axis", 0)
 
@@ -960,6 +1048,13 @@ class PandasDataManager(object):
         return self.full_axis_reduce_along_select_indices(func, axis, new_index)
 
     def std(self, **kwargs):
+        """Returns standard deviation of each column or row.
+
+        Args:
+
+        Returns:
+            Series containing the standard deviation of each column or row.
+        """
         # Pandas default is 0 (though not mentioned in docs)
         axis = kwargs.get("axis", 0)
 
@@ -974,6 +1069,13 @@ class PandasDataManager(object):
         return self.full_axis_reduce_along_select_indices(func, axis, new_index)
 
     def var(self, **kwargs):
+        """Returns varience of each column or row.
+
+        Args:
+
+        Returns:
+            Series containing the varience of each column or row.
+        """
         # Pandas default is 0 (though not mentioned in docs)
         axis = kwargs.get("axis", 0)
 
@@ -988,6 +1090,13 @@ class PandasDataManager(object):
         return self.full_axis_reduce_along_select_indices(func, axis, new_index)
 
     def quantile_for_single_value(self, **kwargs):
+        """Returns quantile of each column or row.
+
+        Args:
+
+        Returns:
+            Series containing the quantile of each column or row.
+        """
         axis = kwargs.get("axis", 0)
         q = kwargs.get("q", 0.5)
         assert type(q) is float
@@ -1227,8 +1336,16 @@ class PandasDataManager(object):
     # that is being operated on. This means that we have to put all of that
     # data in the same place.
     def astype(self, col_dtypes, errors='raise', **kwargs):
+        """Converts columns dtypes to given dtypes.
 
+        Args:
+            col_dtypes: Dictionary of {col: dtype,...} where col is the column
+            name and dtype is a numpy dtype.
+            errors: Controlling the raising of errors
 
+        Returns:
+            DataFrame with updated dtypes.
+        """
         # Group indices to update by dtype for less map operations
         dtype_indices = dict()
         columns = col_dtypes.keys()

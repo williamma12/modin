@@ -7,7 +7,7 @@ import pandas
 
 from pandas.compat import string_types
 from pandas.core.dtypes.cast import find_common_type
-from pandas.core.dtypes.common import (_get_dtype_from_object, is_list_like, is_numeric_dtype, is_int_or_datetime_dtype)
+from pandas.core.dtypes.common import (_get_dtype_from_object, is_list_like, is_numeric_dtype, is_datetime_or_timedelta_dtype)
 from pandas.core.index import _ensure_index
 
 from .partitioning.partition_collections import BlockPartitions
@@ -1156,7 +1156,7 @@ class PandasDataManager(object):
         if numeric_only:
             new_index = self.numeric_columns()
         else:
-            new_index = [col for col, dtype in zip(self.columns, self.dtypes) if (is_numeric_dtype(dtype) or is_int_or_datetime_dtype(dtype))]
+            new_index = [col for col, dtype in zip(self.columns, self.dtypes) if (is_numeric_dtype(dtype) or is_datetime_or_timedelta_dtype(dtype))]
         if len(new_index) == 0:
             return pandas.Series(dtype=np.float64)
 
@@ -1414,7 +1414,7 @@ class PandasDataManager(object):
         if numeric_only:
             new_columns = self.numeric_columns()
         else:
-            new_columns = [col for col, dtype in zip(self.columns, self.dtypes) if (is_numeric_dtype(dtype) or is_int_or_datetime_dtype(dtype))]
+            new_columns = [col for col, dtype in zip(self.columns, self.dtypes) if (is_numeric_dtype(dtype) or is_datetime_or_timedelta_dtype(dtype))]
         index = self.index if axis else self.columns
         if axis:
             # If along rows, then drop the nonnumeric columns, record the index, and take transpose.

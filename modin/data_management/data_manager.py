@@ -139,7 +139,7 @@ class PandasDataManager(object):
                 return pandas_func(df, **kwargs)
         return helper
 
-    def numeric_indices(self):
+    def numeric_columns(self):
         """Returns the numeric columns of the DataFrame.
         
         Args:
@@ -573,7 +573,7 @@ class PandasDataManager(object):
             Returns Pandas Series containing the results from map_func and reduce_func.
         """
         if numeric_only:
-            index = self.numeric_indices()
+            index = self.numeric_columns()
             if len(index) == 0:
                 return pandas.Series(dtype=np.float64)
             if axis:
@@ -640,7 +640,7 @@ class PandasDataManager(object):
         """
         # Pandas default is 0 (though not mentioned in docs)
         axis = kwargs.get("axis", 0)
-        new_index = self.numeric_indices()
+        new_index = self.numeric_columns()
         if len(new_index) == 0:
             return pandas.Series(dtype=np.float64)
 
@@ -747,6 +747,59 @@ class PandasDataManager(object):
         func = self._prepare_method(pandas.DataFrame.round, **kwargs)
         return self.map_partitions(func, new_dtypes=self._dtype_cache)
     # END Map partitions operations
+
+    # Map partitions across select indices
+    def astype(self, col_dtypes, errors='raise', **kwargs):
+        """Converts columns dtypes to given dtypes.
+
+        Args:
+            col_dtypes: Dictionary of {col: dtype,...} where col is the column
+            name and dtype is a numpy dtype.
+            errors: Controlling the raising of errors.
+
+        Returns:
+            DataFrame with updated dtypes.
+        """
+        # Group indices to update by dtype for less map operations
+        dtype_indices = dict()
+        columns = col_dtypes.keys()
+        numeric_indices = list(self.columns.get_indexer_for(columns))
+
+        # Create Series for the updated dtypes
+        new_dtypes = self.dtypes.copy()
+
+        for i, column in enumerate(columns):
+
+            dtype = col_dtypes[column]
+            if dtype != self.dtypes[column]:
+                # Only add dtype only if different
+                if dtype in dtype_indices.keys():
+                    dtype_indices[dtype].append(numeric_indices[i])
+                else:
+                    dtype_indices[dtype] = [numeric_indices[i]]
+
+                # Update the new dtype series to the proper pandas dtype
+                new_dtype = np.dtype(dtype)
+                if dtype != np.int32 and new_dtype == np.int32:
+                    new_dtype = np.dtype('int64')
+                elif dtype != np.float32 and new_dtype == np.float32:
+                    new_dtype = np.dtype('float64')
+                new_dtypes[column] = new_dtype
+
+        # Update partitions for each dtype that is updated
+        new_data = self.data
+        for dtype in dtype_indices.keys():
+
+            def astype(df, internal_indices=[]):
+                block_dtypes = dict()
+                for ind in internal_indices:
+                    block_dtypes[df.columns[ind]] = dtype
+                return df.astype(block_dtypes)
+
+            new_data = new_data.apply_func_to_select_indices(0, astype, dtype_indices[dtype], keep_remaining=True)
+
+        return self.__constructor__(new_data, self.index, self.columns, new_dtypes)
+    # END Map partitions across select indices
 
     # Column/Row partitions reduce operations
     #
@@ -957,8 +1010,8 @@ class PandasDataManager(object):
         """
         # Convert indices to numeric indices
         old_index = self.index if axis else self.columns
-        numeric_indices = [i for i, name in enumerate(old_index) if name in index]
-        result = self.data.apply_func_to_select_indices_along_full_axis(axis, func, numeric_indices)
+        numeric_columns = [i for i, name in enumerate(old_index) if name in index]
+        result = self.data.apply_func_to_select_indices_along_full_axis(axis, func, numeric_columns)
 
         if pandas_result:
             result = result.to_pandas(self._is_transposed)
@@ -981,7 +1034,7 @@ class PandasDataManager(object):
 
         # Only describe numeric if there are numeric 
         # Otherwise, describe all
-        new_index = self.numeric_indices()
+        new_index = self.numeric_columns()
         if len(new_index) != 0:
             numeric = True
         else:
@@ -1015,7 +1068,7 @@ class PandasDataManager(object):
         # Pandas default is 0 (though not mentioned in docs)
         axis = kwargs.get("axis", 0)
 
-        new_index = self.numeric_indices()
+        new_index = self.numeric_columns()
         if len(new_index) == 0:
             return pandas.Series(dtype=np.float64)
 
@@ -1036,7 +1089,7 @@ class PandasDataManager(object):
         # Pandas default is 0 (though not mentioned in docs)
         axis = kwargs.get("axis", 0)
 
-        new_index = self.numeric_indices()
+        new_index = self.numeric_columns()
         if len(new_index) == 0:
             return pandas.Series(dtype=np.float64)
 
@@ -1057,7 +1110,7 @@ class PandasDataManager(object):
         # Pandas default is 0 (though not mentioned in docs)
         axis = kwargs.get("axis", 0)
 
-        new_index = self.numeric_indices()
+        new_index = self.numeric_columns()
         if len(new_index) == 0:
             return pandas.Series(dtype=np.float64)
 
@@ -1078,7 +1131,7 @@ class PandasDataManager(object):
         # Pandas default is 0 (though not mentioned in docs)
         axis = kwargs.get("axis", 0)
 
-        new_index = self.numeric_indices()
+        new_index = self.numeric_columns()
         if len(new_index) == 0:
             return pandas.Series(dtype=np.float64)
 
@@ -1100,7 +1153,7 @@ class PandasDataManager(object):
         q = kwargs.get("q", 0.5)
         assert type(q) is float
 
-        new_index = self.numeric_indices()
+        new_index = self.numeric_columns()
         if len(new_index) == 0:
             return pandas.Series(dtype=np.float64)
 
@@ -1271,27 +1324,15 @@ class PandasDataManager(object):
             new_data = self.map_across_full_axis(axis, func)
             return self.__constructor__(new_data, self.index, self.columns)
 
-    def quantile_for_list_of_values(self, **kwargs):
-
-        axis = kwargs.get("axis", 0)
-        q = kwargs.get("q", 0.5)
-        assert isinstance(q, (pandas.Series, np.ndarray, pandas.Index, list))
-
-        index = self.index if axis else self.columns
-        new_columns = list()
-        for i, dtype in enumerate(self.dtypes):
-            if is_numeric_dtype(dtype):
-                new_columns.append(index[i])
-
-        func = self._prepare_method(pandas.DataFrame.quantile, **kwargs)
-
-        q_index = pandas.Float64Index(q)
-
-        new_data = self.map_across_full_axis(axis, func)
-        return self.__constructor__(new_data, q_index, new_columns)
-
     def query(self, expr, **kwargs):
+        """Query columns of the DataManager with a boolean expression.
 
+        Args:
+            expr: Boolean expression to query the columns with.
+
+        Returns:
+            DataManager object containing the rows where the boolean expression is satisfied.
+        """
         columns = self.columns
 
         def query_builder(df, **kwargs):
@@ -1312,8 +1353,13 @@ class PandasDataManager(object):
         return self.__constructor__(new_data, new_index, self.columns, self.dtypes)
 
     def rank(self, **kwargs):
+        """Computes the numerical rank along an axis. Equal values are given the average of those values.
 
+        Args:
 
+        Returns:
+            DataManager containing the ranks of the values along an axis.
+        """
         axis = kwargs.get("axis", 0)
         numeric_only = True if axis else kwargs.get("numeric_only", False)
 
@@ -1330,65 +1376,71 @@ class PandasDataManager(object):
         return self.__constructor__(new_data, self.index, new_columns, new_dtypes)
     # END Map across rows/columns
 
-    # Map across select rows/columns
+    # Map across rows/columns
     # These operations require some global knowledge of the full column/row
     # that is being operated on. This means that we have to put all of that
     # data in the same place.
-    def astype(self, col_dtypes, errors='raise', **kwargs):
-        """Converts columns dtypes to given dtypes.
+    def map_across_full_axis_select_indices(self, axis, func, indices, keep_remaining=False):
+        """Maps function to select indices along full axis.
 
         Args:
-            col_dtypes: Dictionary of {col: dtype,...} where col is the column
-            name and dtype is a numpy dtype.
-            errors: Controlling the raising of errors.
+            axis: 0 for columns and 1 for rows.
+            func: Callable mapping function over the BlockParitions
+            indices: indices along axis to map over
+            keep_remaining: True if keep indices where function was not applied
 
         Returns:
-            DataFrame with updated dtypes.
+            BlockPartitions object containing the result of mapping func over axis on indices.
         """
-        # Group indices to update by dtype for less map operations
-        dtype_indices = dict()
-        columns = col_dtypes.keys()
-        numeric_indices = list(self.columns.get_indexer_for(columns))
+        return self.data.apply_func_to_select_indices_along_full_axis(axis, func, indices, keep_remaining)
+        
 
-        # Create Series for the updated dtypes
-        new_dtypes = self.dtypes.copy()
+    def quantile_for_list_of_values(self, **kwargs):
+        """Returns a DataFrame containing the quantiles along an axis for numeric columns.
 
-        for i, column in enumerate(columns):
+        Args:
 
-            dtype = col_dtypes[column]
-            if dtype != self.dtypes[column]:
-                # Only add dtype only if different
-                if dtype in dtype_indices.keys():
-                    dtype_indices[dtype].append(numeric_indices[i])
-                else:
-                    dtype_indices[dtype] = [numeric_indices[i]]
+        Returns:
+            DataManager containing quantiles of original DataFrame along an axis.
+        """
+        axis = kwargs.get("axis", 0)
+        q = kwargs.get("q")
+        assert isinstance(q, (pandas.Series, np.ndarray, pandas.Index, list))
 
-                # Update the new dtype series to the proper pandas dtype
-                new_dtype = np.dtype(dtype)
-                if dtype != np.int32 and new_dtype == np.int32:
-                    new_dtype = np.dtype('int64')
-                elif dtype != np.float32 and new_dtype == np.float32:
-                    new_dtype = np.dtype('float64')
-                new_dtypes[column] = new_dtype
+        new_columns = self.numeric_columns()
+        index = self.index if axis else self.columns
+        if axis:
+            # If along rows, then drop the nonnumeric columns, record the index, and take transpose.
+            # We have to do this because if we don't, the result is all in one column for some reason.
+            nonnumeric = [col for col, dtype in zip(self.columns, self.dtypes) if not is_numeric_dtype(dtype)]
+            data_manager = self.drop(columns=nonnumeric)
+            new_columns = data_manager.index
+            numeric_indices = list(data_manager.index.get_indexer_for(new_columns))
+            data_manager = data_manager.transpose()
+            kwargs.pop("axis")
+        else:
+            data_manager = self
+            numeric_indices = list(self.columns.get_indexer_for(new_columns))
 
-        # Update partitions for each dtype that is updated
-        new_data = self.data
-        for dtype in dtype_indices.keys():
+        def quantile_builder(df, internal_indices=[], **kwargs):
+            return pandas.DataFrame.quantile(df, **kwargs)
 
-            def astype(df, internal_indices=[]):
-                block_dtypes = dict()
-                for ind in internal_indices:
-                    block_dtypes[df.columns[ind]] = dtype
-                return df.astype(block_dtypes)
-
-            new_data = new_data.apply_func_to_select_indices(0, astype, dtype_indices[dtype], keep_remaining=True)
-
-        return self.__constructor__(new_data, self.index, self.columns, new_dtypes)
+        func = self._prepare_method(quantile_builder, **kwargs)
+        q_index = pandas.Float64Index(q)
+        new_data = data_manager.map_across_full_axis_select_indices(0, func, numeric_indices)
+        return self.__constructor__(new_data, q_index, new_columns)
     # END Map across rows/columns
 
     # Head/Tail/Front/Back
     def head(self, n):
+        """Returns the first n rows.
 
+        Args:
+            n: Integer containing the number of rows to return.
+
+        Returns:
+            DataManager containing the first n rows of the original DataManager.
+        """
         # We grab the front if it is transposed and flag as transposed so that
         # we are not physically updating the data from this manager. This
         # allows the implementation to stay modular and reduces data copying.
@@ -1404,7 +1456,14 @@ class PandasDataManager(object):
         return result
 
     def tail(self, n):
+        """Returns the last n rows.
 
+        Args:
+            n: Integer containing the number of rows to return.
+
+        Returns:
+            DataManager containing the last n rows of the original DataManager.
+        """
         # See head for an explanation of the transposed behavior
         if self._is_transposed:
             result = self.__constructor__(self.data.transpose().take(1, -n).transpose(), self.index[-n:], self.columns, self._dtype_cache)
@@ -1415,7 +1474,14 @@ class PandasDataManager(object):
         return result
 
     def front(self, n):
+        """Returns the first n columns.
 
+        Args:
+            n: Integer containing the number of columns to return.
+
+        Returns:
+            DataManager containing the first n columns of the original DataManager.
+        """
         # See head for an explanation of the transposed behavior
         if self._is_transposed:
             result = self.__constructor__(self.data.transpose().take(0, n).transpose(), self.index, self.columns[:n], self.dtypes[:n])
@@ -1425,7 +1491,14 @@ class PandasDataManager(object):
         return result
 
     def back(self, n):
+        """Returns the last n columns.
 
+        Args:
+            n: Integer containing the number of columns to return.
+
+        Returns:
+            DataManager containing the last n columns of the original DataManager.
+        """
         # See head for an explanation of the transposed behavior
         if self._is_transposed:
             result = self.__constructor__(self.data.transpose().take(0, -n).transpose(), self.index, self.columns[-n:], self.dtypes[-n:])
@@ -1445,6 +1518,13 @@ class PandasDataManager(object):
 
     # To/From Pandas
     def to_pandas(self):
+        """Converts Modin DataFrame to Pandas DataFrame
+
+        Args:
+
+        Returns:
+            Pandas DataFrame of the DataManager.
+        """
         df = self.data.to_pandas(is_transposed=self._is_transposed)
         df.index = self.index
         df.columns = self.columns
@@ -1452,6 +1532,16 @@ class PandasDataManager(object):
 
     @classmethod
     def from_pandas(cls, df, block_partitions_cls):
+        """Improve a simple Pandas DataFrame to an advanced and superior Modin DataFrame.
+
+        Args:
+            cls: DataManger object to convert the DataFrame to.
+            df: Pandas DataFrame object.
+            block_partitions_cls: BlockParitions object to store partitions
+
+        Returns:
+            Returns DataManager containing data from the Pandas DataFrame.
+        """
         new_index = df.index
         new_columns = df.columns
         new_dtypes = df.dtypes

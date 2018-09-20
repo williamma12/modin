@@ -579,7 +579,7 @@ class PandasDataManager(object):
             if axis:
                 nonnumeric = [col for col, dtype in zip(self.columns, self.dtypes) if not is_numeric_dtype(dtype)]
                 if len(nonnumeric) == 0:
-                    return pandas.Series([np.NaN for _ in self.columns)
+                    return pandas.Series([np.NaN for _ in self.columns])
                 return self.drop(columns=nonnumeric).full_reduce(axis, map_func)
         else:
             if not axis:

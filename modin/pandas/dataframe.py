@@ -631,7 +631,7 @@ class DataFrame(object):
             "To contribute to Pandas on Ray, please visit "
             "github.com/modin-project/modin.")
 
-    def all(self, axis=None, bool_only=None, skipna=None, level=None,
+    def all(self, axis=0, bool_only=None, skipna=None, level=None,
             **kwargs):
         """Return whether all elements are True over requested axis
 
@@ -639,15 +639,21 @@ class DataFrame(object):
             If axis=None or axis=0, this call applies df.all(axis=1)
                 to the transpose of df.
         """
-        axis = pandas.DataFrame()._get_axis_number(
-            axis) if axis is not None else 0
+        if axis is not None:
+            axis = pandas.DataFrame()._get_axis_number(axis)
+        else:
+            axis = None
 
-        return self._data_manager.all(
+        result = self._data_manager.all(
             axis=axis,
             bool_only=bool_only,
             skipna=skipna,
             level=level,
             **kwargs)
+        if axis is not None:
+            return result
+        else:
+            return result.all()
 
     def any(self, axis=None, bool_only=None, skipna=None, level=None,
             **kwargs):

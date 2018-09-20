@@ -140,7 +140,7 @@ class PandasDataManager(object):
         return helper
 
     def numeric_columns(self):
-        """Returns the numeric columns of the DataFrame.
+        """Returns the numeric columns of the Manager.
         
         Args:
             axis: The axis to extract the indices from.
@@ -604,7 +604,7 @@ class PandasDataManager(object):
             numeric_only: If true, only considers numerical columns.
 
         Return:
-            Pandas series containing the counts of non-NaN objects from each column or row.
+            Pandas series containing counts of non-NaN objects from each column or row.
         """
         axis = kwargs.get("axis", 0)
         numeric_only = kwargs.get("numeric_only", False)
@@ -808,10 +808,10 @@ class PandasDataManager(object):
     # we will implement a Distributed Series, and this will be returned
     # instead.
     def full_axis_reduce(self, func, axis):
-        """Applies function that reduces a dataframe to a series and require knowledge of the full axis.
+        """Applies map that reduce Manager to series but require knowledge of full axis.
 
         Args: 
-            func: Function to reduce the dataframe by. This function takes in a dataframe.
+            func: Function to reduce the Manager by. This function takes in a Manager.
         
         Return:
             Pandas series containing the reduced data.
@@ -975,7 +975,7 @@ class PandasDataManager(object):
         return self.full_axis_reduce(func, axis)
 
     def to_datetime(self, **kwargs):
-        """Converts the DataFrame to a Series of DateTime objects.
+        """Converts the Manager to a Series of DateTime objects.
 
         Args:
 
@@ -997,10 +997,10 @@ class PandasDataManager(object):
     # we will implement a Distributed Series, and this will be returned
     # instead.
     def full_axis_reduce_along_select_indices(self, func, axis, index, pandas_result=True):
-        """Reduces DataFrame along select indices using a function that requires full knowledge of axis.
+        """Reduce Manger along select indices using function that needs full axis.
 
         Args:
-            func: Callable that reduces DataFrames to Series using full knowledge of an axis.
+            func: Callable that reduces Manager to Series using full knowledge of an axis.
             axis: 0 for columns and 1 for rows. Defaults to 0.
             index: Index of the resulting series.
             pandas_result: Return the result as a Pandas Series instead of raw data.
@@ -1334,7 +1334,7 @@ class PandasDataManager(object):
             expr: Boolean expression to query the columns with.
 
         Returns:
-            DataManager object containing the rows where the boolean expression is satisfied.
+            DataManager containing the rows where the boolean expression is satisfied.
         """
         columns = self.columns
 
@@ -1356,7 +1356,7 @@ class PandasDataManager(object):
         return self.__constructor__(new_data, new_index, self.columns, self.dtypes)
 
     def rank(self, **kwargs):
-        """Computes the numerical rank along an axis. Equal values are given the average of those values.
+        """Computes numerical rank along axis. Equal values are set to the average.
 
         Args:
 
@@ -1393,18 +1393,18 @@ class PandasDataManager(object):
             keep_remaining: True if keep indices where function was not applied
 
         Returns:
-            BlockPartitions object containing the result of mapping func over axis on indices.
+            BlockPartitions containing the result of mapping func over axis on indices.
         """
         return self.data.apply_func_to_select_indices_along_full_axis(axis, func, indices, keep_remaining)
         
 
     def quantile_for_list_of_values(self, **kwargs):
-        """Returns a DataFrame containing the quantiles along an axis for numeric columns.
+        """Returns Manager containing quantiles along an axis for numeric columns.
 
         Args:
 
         Returns:
-            DataManager containing quantiles of original DataFrame along an axis.
+            DataManager containing quantiles of original DataManager along an axis.
         """
         axis = kwargs.get("axis", 0)
         q = kwargs.get("q")
@@ -1539,7 +1539,7 @@ class PandasDataManager(object):
 
     @classmethod
     def from_pandas(cls, df, block_partitions_cls):
-        """Improve a simple Pandas DataFrame to an advanced and superior Modin DataFrame.
+        """Improve simple Pandas DataFrame to an advanced and superior Modin DataFrame.
 
         Args:
             cls: DataManger object to convert the DataFrame to.

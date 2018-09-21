@@ -2637,7 +2637,7 @@ class DataFrame(object):
             # Normally pandas returns this near the end of the quantile, but we
             # can't afford the overhead of running the entire operation before
             # we error.
-            if not all(is_numeric_dtype(t) for t in self.dtypes):
+            if not any(is_numeric_dtype(t) for t in self.dtypes):
                 raise ValueError("need at least one array to concatenate")
 
         # check that all qs are between 0 and 1

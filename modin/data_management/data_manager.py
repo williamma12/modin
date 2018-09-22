@@ -155,7 +155,7 @@ class PandasDataManager(object):
         return columns
 
     def numeric_function_clean_dataframe(self, axis):
-        """Does prepocessing for numeric functions to clean dataframe and pick indices.
+        """Preprocesses numeric functions to clean dataframe and pick numeric indices.
         
         Args:
             axis: '0' if columns and '1' if rows.
@@ -594,7 +594,7 @@ class PandasDataManager(object):
             axis: 0 for columns and 1 for rows. Default is 0.
             map_func: Callable function to map the dataframe.
             reduce_func: Callable function to reduce the dataframe. If none,
-            then apply map_func twice.
+                then apply map_func twice.
             numeric_only: Apply only over the numeric rows.
 
         Return:
@@ -875,8 +875,6 @@ class PandasDataManager(object):
     def first_valid_index(self):
         """Returns index of first non-NaN/NULL value.
 
-        Args:
-            
         Return:
             Scalar of index name.
         """
@@ -910,8 +908,6 @@ class PandasDataManager(object):
     def idxmax(self, **kwargs):
         """Returns the first occurance of the maximum over requested axis.
 
-        Args:
-            
         Returns:
             Series containing the maximum of each column or axis.
         """
@@ -931,8 +927,6 @@ class PandasDataManager(object):
     def idxmin(self, **kwargs):
         """Returns the first occurance of the minimum over requested axis.
 
-        Args:
-            
         Returns:
             Series containing the minimum of each column or axis.
         """
@@ -952,8 +946,6 @@ class PandasDataManager(object):
     def last_valid_index(self):
         """Returns index of last non-NaN/NULL value.
 
-        Args:
-            
         Return:
             Scalar of index name.
         """
@@ -971,8 +963,6 @@ class PandasDataManager(object):
     def memory_usage(self, **kwargs):
         """Returns the memory usage of each column.
 
-        Args:
-
         Returns:
             Series containing the memory usage of each column.
         """
@@ -986,8 +976,6 @@ class PandasDataManager(object):
     def nunique(self, **kwargs):
         """Returns the number of unique items over each column or row.
 
-        Args:
-
         Returns:
             Series of ints indexed by column or index names.
         """
@@ -997,8 +985,6 @@ class PandasDataManager(object):
 
     def to_datetime(self, **kwargs):
         """Converts the Manager to a Series of DateTime objects.
-
-        Args:
 
         Returns:
             Series of DateTime objects.
@@ -1046,8 +1032,6 @@ class PandasDataManager(object):
     def describe(self, **kwargs):
         """Generates descriptive statistics.
 
-        Args:
-
         Returns:
             DataFrame object containing the descriptive statistics of the DataFrame.
         """
@@ -1081,8 +1065,6 @@ class PandasDataManager(object):
     def median(self, **kwargs):
         """Returns median of each column or row.
 
-        Args:
-
         Returns:
             Series containing the median of each column or row.
         """
@@ -1101,8 +1083,6 @@ class PandasDataManager(object):
 
     def skew(self, **kwargs):
         """Returns skew of each column or row.
-
-        Args:
 
         Returns:
             Series containing the skew of each column or row.
@@ -1123,8 +1103,6 @@ class PandasDataManager(object):
     def std(self, **kwargs):
         """Returns standard deviation of each column or row.
 
-        Args:
-
         Returns:
             Series containing the standard deviation of each column or row.
         """
@@ -1144,8 +1122,6 @@ class PandasDataManager(object):
     def var(self, **kwargs):
         """Returns varience of each column or row.
 
-        Args:
-
         Returns:
             Series containing the varience of each column or row.
         """
@@ -1164,8 +1140,6 @@ class PandasDataManager(object):
 
     def quantile_for_single_value(self, **kwargs):
         """Returns quantile of each column or row.
-
-        Args:
 
         Returns:
             Series containing the quantile of each column or row.
@@ -1381,8 +1355,6 @@ class PandasDataManager(object):
     def rank(self, **kwargs):
         """Computes numerical rank along axis. Equal values are set to the average.
 
-        Args:
-
         Returns:
             DataManager containing the ranks of the values along an axis.
         """
@@ -1411,9 +1383,9 @@ class PandasDataManager(object):
 
         Args:
             axis: 0 for columns and 1 for rows.
-            func: Callable mapping function over the BlockParitions
-            indices: indices along axis to map over
-            keep_remaining: True if keep indices where function was not applied
+            func: Callable mapping function over the BlockParitions.
+            indices: indices along axis to map over.
+            keep_remaining: True if keep indices where function was not applied.
 
         Returns:
             BlockPartitions containing the result of mapping func over axis on indices.
@@ -1423,8 +1395,6 @@ class PandasDataManager(object):
 
     def quantile_for_list_of_values(self, **kwargs):
         """Returns Manager containing quantiles along an axis for numeric columns.
-
-        Args:
 
         Returns:
             DataManager containing quantiles of original DataManager along an axis.
@@ -1548,9 +1518,7 @@ class PandasDataManager(object):
 
     # To/From Pandas
     def to_pandas(self):
-        """Converts Modin DataFrame to Pandas DataFrame
-
-        Args:
+        """Converts Modin DataFrame to Pandas DataFrame.
 
         Returns:
             Pandas DataFrame of the DataManager.

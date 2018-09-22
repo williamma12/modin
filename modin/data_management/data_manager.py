@@ -1032,6 +1032,9 @@ class PandasDataManager(object):
         # Convert indices to numeric indices
         old_index = self.index if axis else self.columns
         numeric_indices = [i for i, name in enumerate(old_index) if name in index]
+        print(axis)
+        print(old_index)
+        print(numeric_indices)
         result = self.data.apply_func_to_select_indices_along_full_axis(axis, func, numeric_indices)
 
         if pandas_result:
@@ -1723,9 +1726,13 @@ class PandasDataManager(object):
         # this logic here.
         if len(columns) == 0:
             series_result = result_data.to_pandas(False)
-            if not axis and len(series_result) == len(self.columns) and len(index) != len(series_result):
+            print("self.columns:{}".format(self.columns))
+            print("self.index:{}".format(self.index))
+            print("index:{}".format(index))
+            print("result:{}".format(series_result))
+            if not axis and len(series_result) == len(self.columns):# and len(index) != len(series_result):
                 index = self.columns
-            elif axis and len(series_result) == len(self.index) and len(index) != len(series_result):
+            elif axis and len(series_result) == len(self.index):# and len(index) != len(series_result):
                 index = self.index
 
             series_result.index = index

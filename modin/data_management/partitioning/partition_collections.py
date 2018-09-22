@@ -477,10 +477,6 @@ class BlockPartitions(object):
             block_idx = int(np.digitize(index, cumulative_column_widths))
             # Compute the internal index based on the previous lengths. This
             # is a global index, so we must subtract the lengths first.
-            print(block_idx)
-            print(cumulative_column_widths)
-            print(self.block_widths)
-            print(index)
             internal_idx = index if not block_idx else index - cumulative_column_widths[block_idx - 1]
             return block_idx, internal_idx
         else:
@@ -572,8 +568,8 @@ class BlockPartitions(object):
             partitions_for_apply = self.partitions.T
         else:
             partitions_for_apply = self.partitions
-        print(partitions_for_apply)
-        print(partitions_dict)
+        print([dict_indices[idx] for idx in partitions_dict[0]])
+        print(partitions_for_apply[0])
 
         # We may have a command to perform different functions on different
         # columns at the same time. We attempt to handle this as efficiently as
@@ -583,7 +579,7 @@ class BlockPartitions(object):
             if not keep_remaining:
                 result = np.array([self._apply_func_to_list_of_partitions(func, partitions_for_apply[i], func_dict={idx: dict_indices[idx] for idx in partitions_dict[i]}) for i in partitions_dict])
             else:
-                result = np.array([partitions_for_apply[i] if i not in partitions_dict else self._apply_func_to_list_of_partitions(func, partitions_for_apply[i], func_dict={idx: dict_indices[i] for idx in partitions_dict[i]}) for i in range(len(partitions_for_apply))])
+                result = np.array([partitions_for_apply[i] if i not in partitions_dict else self._apply_func_to_list_of_partitions(func, partitions_for_apply[i], func_dict={idx: dict_indices[idx] for idx in partitions_dict[i]}) for i in range(len(partitions_for_apply))])
         else:
             if not keep_remaining:
                 # We are passing internal indices in here. In order for func to

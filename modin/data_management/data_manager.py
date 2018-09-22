@@ -1032,9 +1032,6 @@ class PandasDataManager(object):
         # Convert indices to numeric indices
         old_index = self.index if axis else self.columns
         numeric_indices = [i for i, name in enumerate(old_index) if name in index]
-        print(axis)
-        print(old_index)
-        print(numeric_indices)
         result = self.data.apply_func_to_select_indices_along_full_axis(axis, func, numeric_indices)
 
         if pandas_result:
@@ -1341,7 +1338,9 @@ class PandasDataManager(object):
                 index = self.columns
             else:
                 index = self.index
+            print(value)
             value = {idx: value[key] for key in value for idx in index.get_indexer_for([key])}
+            print(value)
 
             def fillna_dict_builder(df, func_dict={}):
                 return df.fillna(value=func_dict, **kwargs)

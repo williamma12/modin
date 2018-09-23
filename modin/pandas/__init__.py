@@ -36,7 +36,7 @@ os.environ['OMP_NUM_THREADS'] = "1"
 
 num_cpus = ray.global_state.cluster_resources()['CPU']
 # DEFAULT_NPARTITIONS = int(num_cpus)
-DEFAULT_NPARTITIONS = 1
+DEFAULT_NPARTITIONS = 2
 
 __all__ = [
     "DataFrame", "Series", "read_csv", "read_parquet", "read_json",

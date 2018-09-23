@@ -347,9 +347,7 @@ class BlockPartitions(object):
 
             if all(isinstance(part, pandas.Series) for row in retrieved_objects for part in row):
                 axis = 0
-                if num_splits == 1:
-                    pass
-                else:
+                if num_splits > 2:
                     retrieved_objects = np.array(retrieved_objects).T
             elif all(isinstance(part, pandas.DataFrame) for row in retrieved_objects for part in row):
                 axis = 1
@@ -568,8 +566,6 @@ class BlockPartitions(object):
             partitions_for_apply = self.partitions.T
         else:
             partitions_for_apply = self.partitions
-        print([dict_indices[idx] for idx in partitions_dict[0]])
-        print(partitions_for_apply[0])
 
         # We may have a command to perform different functions on different
         # columns at the same time. We attempt to handle this as efficiently as
@@ -651,11 +647,16 @@ class BlockPartitions(object):
             if not keep_remaining:
                 # See notes in `apply_func_to_select_indices`
                 result = np.array([partitions_for_apply[i].apply(preprocessed_func, internal_indices=partitions_dict[i]) for i in partitions_dict])
+                print(partitions_dict)
+                for x in range(result.shape[0]):
+                    for y in range(result.shape[1]):
+                        print("{} ".format(result[x,y].to_pandas()))
+                    print("\n")
             else:
                 # See notes in `apply_func_to_select_indices`
                 result = np.array([partitions_for_remaining[i] if i not in partitions_dict else partitions_for_apply[i].apply(preprocessed_func, internal_indices=partitions_dict[i]) for i in range(len(partitions_for_remaining))])
 
-        return cls(result.T) if not axis else cls(result)
+        return cls(result) if not axis else cls(result)
 
 
     def apply_func_to_indices_both_axis(self, func, row_indices, col_indices,

@@ -1035,7 +1035,12 @@ class PandasDataManager(object):
         result = self.data.apply_func_to_select_indices_along_full_axis(axis, func, numeric_indices)
 
         if pandas_result:
+            for x in range(result.shape[0]):
+                for y in range(result.shape[1]):
+                    print("{} ".format(result[x,y].to_pandas()))
+                print("\n")
             result = result.to_pandas(self._is_transposed)
+            # TODO: Results not in the correct order...
             if not axis:
                 result.index = index
             else:

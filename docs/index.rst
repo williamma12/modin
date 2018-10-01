@@ -41,9 +41,11 @@ you would pandas.
 Faster pandas, even on your laptop
 ----------------------------------
 
-.. raw:: html
-
-  <img align="right" style="display:inline;" height="350" width="300" src="./img/read_csv_benchmark.png"></a>
+.. image:: img/read_csv_benchmark.png
+   :height: 350px
+   :width: 300px
+   :alt: Plot of read_csv
+   :align: right
 
 The `modin.pandas` DataFrame is an extremely light-weight parallel DataFrame. Modin
 transparently distributes the data and computation so that all you need to do is
@@ -87,6 +89,18 @@ nature, you get a fast DataFrame at 1KB and 1TB+.
 
    pandas_on_ray.rst
    pandas_supported.rst
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Contributing to Modin
+
+   contributing.rst
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Architecture
+
+   architecture.rst
 
 .. toctree::
    :maxdepth: 1

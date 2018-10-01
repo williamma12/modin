@@ -54,4 +54,4 @@ Once cloned, ``cd`` into the ``modin`` directory and use ``pip`` to install:
 
 .. _`GitHub repo`: https://github.com/modin-project/modin/tree/master
 .. _Ray: http://ray.readthedocs.io
-.. _contributing: http://modin.readthedocs.io/en/latest/contributing.html
+.. _contributing: contributing.html

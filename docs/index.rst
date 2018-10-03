@@ -47,7 +47,7 @@ Faster pandas, even on your laptop
    :alt: Plot of read_csv
    :align: right
 
-The `modin.pandas` DataFrame is an extremely light-weight parallel DataFrame. Modin
+The ``modin.pandas`` DataFrame is an extremely light-weight parallel DataFrame. Modin
 transparently distributes the data and computation so that all you need to do is
 continue using the pandas API as you were before installing Modin. Unlike other parallel
 DataFrame systems, Modin is an extremely light-weight, robust DataFrame. Because it is so
@@ -55,7 +55,7 @@ light-weight, Modin provides speed-ups of up to 4x on a laptop with 4 physical c
 
 In pandas, you are only able to use one core at a time when you are doing computation of
 any kind. With Modin, you are able to use all of the CPU cores on your machine. Even in
-`read_csv`, we see large gains by efficiently distributing the work across your entire
+``read_csv``, we see large gains by efficiently distributing the work across your entire
 machine.
 
 .. code-block:: python
@@ -98,7 +98,7 @@ nature, you get a fast DataFrame at 1KB and 1TB+.
 
 .. toctree::
    :maxdepth: 1
-   :caption: Architecture
+   :caption: Implementation Details and Architecture
 
    architecture.rst
 

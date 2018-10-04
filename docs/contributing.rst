@@ -11,6 +11,8 @@ understanding some of the more complex components of the architecture. There is
 documentation here about the architecture_ that you will want to review in order to get
 started.
 
+Also, feel free to join the discussions on the `developer mailing list`_.
+
 Development Dependencies
 ------------------------
 

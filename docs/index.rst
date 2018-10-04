@@ -105,6 +105,13 @@ nature, you get a fast DataFrame at 1KB and 1TB+.
 
 .. toctree::
    :maxdepth: 1
+   :caption: Help
+
+   troubleshooting.rst
+   contact.rst
+
+.. toctree::
+   :maxdepth: 1
    :caption: SQL on Ray
 
    sql_on_ray.rst

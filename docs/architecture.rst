@@ -16,6 +16,7 @@ both the number of columns and the number of rows we can support. The following 
 illustrates this concept.
 
 .. image:: img/block_partitions_diagram.png
+   :align: center
 
 Currently, each partition is backed by a pandas DataFrame. In the future, we will
 support additional in-memory formats for the backend, namely `Arrow tables`_.
@@ -37,6 +38,7 @@ System Architecture
 The figure below outlines the general architecture for the implementation of Modin.
 
 .. image:: img/modin_architecture_diagram.png
+   :align: center
 
 Modin is logically separated into different layers that represent the hierarchy of a
 typical Database Management System. At the highest layer, we expose the pandas API. This
@@ -63,6 +65,36 @@ operations eagerly in an attempt to behave as pandas does. Some operations, e.g.
 cases, we manipulate some metadata to perform that operation when another operation is
 performed. In the future, we plan to add some query planning and laziness to Modin to
 ensure that queries are performed efficiently.
+
+Partition Manager
+"""""""""""""""""
+
+The Partition Manager is responsible for the data layout and shuffling, partitioning,
+and serializing the tasks that get sent to each partition.
+
+The Partition Manager can change the size and shape of the partitions based on the type
+of operation. For example, certain operations are complex and require access to an
+entire column or row. The Partition Manager can convert the block partitions to row
+partitions or column partitions. This gives Modin the flexibility to perform operations
+that are difficult in row-only or column-only partitioning schemas.
+
+Another important component of the Partition Manager is the serialization and shipment
+of compiled queries to the Partitions. It maintains metadata for the length and width of
+each partition, so when operations only need to operate on or extract a subset of the
+data, it can ship those queries directly to the correct partition. This is particularly
+important for some operations in pandas which can accept different arguments and
+operations for different columns.
+
+Partition
+"""""""""
+
+Partitions are responsible for managing a subset of the DataFrame. As is mentioned
+above, the DataFrame is partitioned both row and column-wise. This gives Modin
+scalability in both directions and flexibility in data layout. There are a number of
+optimizations in Modin that are implemented in the partitions. Partitions are specific
+to the execution framework and in-memory format of the data. This allows Modin to
+exploit potential optimizations across both of these. These optimizations are explained
+further on the pages specific to the execution framework.
 
 .. _Arrow tables: https://arrow.apache.org/docs/python/generated/pyarrow.Table.html
 .. _Ray: https://github.com/ray-project/ray

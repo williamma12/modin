@@ -8,8 +8,8 @@ If you're interested in getting involved in the development of Modin, but aren't
 where start, take a look at the issues tagged `Good first issue`_ or Documentation_.
 These are issues that would be good for getting familiar with the codebase and better
 understanding some of the more complex components of the architecture. There is
-documentation here about the architecture_ and `internal methods`_ that you will want to
-review in order to get started.
+documentation here about the architecture_ that you will want to review in order to get
+started.
 
 Development Dependencies
 ------------------------
@@ -41,8 +41,8 @@ will ensure that it passes the lint checks on Travis:
 
   flake8 .
 
-We test that this has been run on our `Travis CI`_ test suite. If you do this and find that the tests are still failing, try updating your version of
-black and flake8.
+We test that this has been run on our `Travis CI`_ test suite. If you do this and find
+that the tests are still failing, try updating your version of black and flake8.
 
 Adding a test
 -------------
@@ -71,11 +71,23 @@ subset of the test suite. In order to run a specific test run:
 
 The entire test suite is automatically run for each pull request.
 
+Contributing a new execution framework or in-memory format
+----------------------------------------------------------
+
+If you are interested in contributing support for a new execution framework or in-memory
+format, please make sure you understand the architecture_ of Modin.
+
+The best place to start the discussion for adding a new execution framework or in-memory
+format is the `developer mailing list`_.
+
+More docs on this coming soon...
+
 .. _Good first issue: https://github.com/modin-project/modin/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue+%3Abeginner%3A%22
 .. _Documentation: https://github.com/modin-project/modin/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue+%3Abeginner%3A%22
-.. _architecture:
+.. _architecture: architecture.html
 .. _internal methods:
 .. _black: https://github.com/ambv/black
 .. _flake8: http://flake8.pycqa.org/en/latest/
 .. _Travis CI: https://travis-ci.org/
 .. _testing:
+.. _developer mailing list: https://groups.google.com/forum/#!forum/modin-dev

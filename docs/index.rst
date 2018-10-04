@@ -85,9 +85,9 @@ nature, you get a fast DataFrame at 1KB and 1TB+.
 
 .. toctree::
    :maxdepth: 1
-   :caption: Pandas on Ray
+   :caption: Using Modin
 
-   pandas_on_ray.rst
+   using_modin.rst
    pandas_supported.rst
 
 .. toctree::
@@ -101,6 +101,7 @@ nature, you get a fast DataFrame at 1KB and 1TB+.
    :caption: Implementation Details and Architecture
 
    architecture.rst
+   pandas_on_ray.rst
 
 .. toctree::
    :maxdepth: 1

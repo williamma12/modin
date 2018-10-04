@@ -103,7 +103,7 @@ This is the list of execution frameworks and memory formats supported in Modin. 
 would like to contribute a new execution framework or memory format, please see the
 documentation page on Contributing_.
 
-- Pandas on Ray
+- `Pandas on Ray`_
     - Uses the Ray_ execution framework.
     - The in-memory format is a pandas DataFrame.
 - Coming Soon...
@@ -111,3 +111,4 @@ documentation page on Contributing_.
 .. _Arrow tables: https://arrow.apache.org/docs/python/generated/pyarrow.Table.html
 .. _Ray: https://github.com/ray-project/ray
 .. _Contributing: contributing.html
+.. _Pandas on Ray: pandas_on_ray.html

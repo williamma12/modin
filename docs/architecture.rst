@@ -18,7 +18,7 @@ illustrates this concept.
 .. image:: img/block_partitions_diagram.png
    :align: center
 
-Currently, each partition is backed by a pandas DataFrame. In the future, we will
+Currently, each partition's memory format is a pandas DataFrame. In the future, we will
 support additional in-memory formats for the backend, namely `Arrow tables`_.
 
 Index
@@ -96,5 +96,18 @@ to the execution framework and in-memory format of the data. This allows Modin t
 exploit potential optimizations across both of these. These optimizations are explained
 further on the pages specific to the execution framework.
 
+Supported Execution Frameworks and Memory Formats
+"""""""""""""""""""""""""""""""""""""""""""""""""
+
+This is the list of execution frameworks and memory formats supported in Modin. If you
+would like to contribute a new execution framework or memory format, please see the
+documentation page on Contributing_.
+
+- Pandas on Ray
+    - Uses the Ray_ execution framework.
+    - The in-memory format is a pandas DataFrame.
+- Coming Soon...
+
 .. _Arrow tables: https://arrow.apache.org/docs/python/generated/pyarrow.Table.html
 .. _Ray: https://github.com/ray-project/ray
+.. _Contributing: contributing.html

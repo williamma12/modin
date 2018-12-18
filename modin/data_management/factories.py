@@ -300,3 +300,13 @@ class ExperimentalGandivaOnRayFactory(BaseFactory):  # pragma: no cover
     query_compiler_cls = GandivaQueryCompiler
     block_partitions_cls = RayBlockPartitions
     io_cls = GandivaOnRayIO
+
+
+class WeldOnRayFactory(BaseFactory):
+
+    from modin.engines.ray.weld_on_ray.io import WeldOnRayIO
+    from modin.engines.ray.weld_on_ray.block_partitions import RayBlockPartitions
+
+    query_compiler_cls = PandasQueryCompiler
+    block_partitions_cls = RayBlockPartitions
+    io_cls = WeldOnRayIO

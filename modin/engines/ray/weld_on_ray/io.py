@@ -26,7 +26,7 @@ PQ_INDEX_REGEX = re.compile("__index_level_\d+__")  # noqa W605
 class WeldOnRayIO(BaseIO):
 
     block_partitions_cls = RayBlockPartitions
-    query_compiler_cls = PandasQueryCompiler
+    query_compiler_cls = WeldQueryCompiler
 
     @classmethod
     def read_parquet(cls, path, engine, columns, **kwargs):
@@ -86,7 +86,7 @@ class WeldOnRayIO(BaseIO):
         )
         index_len = ray.get(blk_partitions[-1][0])
         index = pandas.RangeIndex(index_len)
-        new_query_compiler = PandasQueryCompiler(
+        new_query_compiler = WeldQueryCompiler(
             RayBlockPartitions(remote_partitions), index, columns
         )
 
@@ -204,7 +204,7 @@ class WeldOnRayIO(BaseIO):
             new_index_ids = get_index.remote([empty_pd_df.index.name], *index_ids)
             new_index = ray.get(new_index_ids)
 
-        new_query_compiler = PandasQueryCompiler(
+        new_query_compiler = WeldQueryCompiler(
             RayBlockPartitions(np.array(partition_ids)), new_index, column_names
         )
 
@@ -442,7 +442,7 @@ class WeldOnRayIO(BaseIO):
         )
         index_len = ray.get(blk_partitions[-1][0])
         index = pandas.RangeIndex(index_len)
-        new_query_compiler = PandasQueryCompiler(
+        new_query_compiler = WeldQueryCompiler(
             RayBlockPartitions(remote_partitions), index, columns
         )
         return new_query_compiler
@@ -497,7 +497,7 @@ class WeldOnRayIO(BaseIO):
         )
         index_len = ray.get(blk_partitions[-1][0])
         index = pandas.RangeIndex(index_len)
-        new_query_compiler = PandasQueryCompiler(
+        new_query_compiler = WeldQueryCompiler(
             RayBlockPartitions(remote_partitions), index, columns
         )
         return new_query_compiler

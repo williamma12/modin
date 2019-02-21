@@ -81,7 +81,7 @@ class WeldOnRayRemotePartition(BaseRemotePartition):
             A Pandas DataFrame.
         """
         # This will likely stay the same
-        dataframe = self.get()
+        dataframe = self.get().to_pandas()
         assert type(dataframe) is pandas.DataFrame or type(dataframe) is pandas.Series
 
         return dataframe
@@ -98,7 +98,6 @@ class WeldOnRayRemotePartition(BaseRemotePartition):
         """
         # This will probably be a Grizzly object.
         # Ray will serialize this object if you `ray.put` it. You may not want this.
-        raise NotImplementedError("Implement me!")
         ray.put(grizzly_obj)
 
     @classmethod

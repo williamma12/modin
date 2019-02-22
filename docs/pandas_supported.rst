@@ -690,20 +690,16 @@ If you ``import modin.pandas as pd`` the following operations are available from
 would like to request it, feel free to `open an issue`_. Make sure you tell us your
 primary use-case so we can make it happen faster!
 
-* ``pd.array``
-* ``pd.api``
 * ``pd.bdate_range``
 * ``pd.Categorical``
 * ``pd.CategoricalDtype``
 * ``pd.CategoricalIndex``
 * ``pd.concat``
 * ``pd.cut``
-* ``pd.datetime``
 * ``pd.DatetimeIndex``
 * ``pd.DatetimeTZDtype``
 * ``pd.DateOffset``
 * ``pd.date_range``
-* ``pd.describe_option``
 * ``pd.eval``
 * ``pd.ExcelFile``
 * ``pd.ExcelWriter``
@@ -711,7 +707,6 @@ primary use-case so we can make it happen faster!
 * ``pd.Float64Index``
 * ``pd.Grouper``
 * ``pd.get_dummies``
-* ``pd.get_option``
 * ``pd.HDFStore``
 * ``pd.Index``
 * ``pd.IndexSlice``
@@ -733,9 +728,6 @@ primary use-case so we can make it happen faster!
 * ``pd.notna``
 * ``pd.notnull``
 * ``pd.NaT``
-* ``pd.offset``
-* ``pd.options``
-* ``pd.option_context``
 * ``pd.Panel``
 * ``pd.Period``
 * ``pd.PeriodDtype``
@@ -743,7 +735,6 @@ primary use-case so we can make it happen faster!
 * ``pd.pivot``
 * ``pd.RangeIndex``
 * ``pd.test``
-* ``pd.tseries``
 * ``pd.Series``
 * ``pd.set_eng_float_format``
 * ``pd.set_option``
@@ -751,7 +742,6 @@ primary use-case so we can make it happen faster!
 * ``pd.SparseArray``
 * ``pd.SparseDataFrame``
 * ``pd.SparseSeries``
-* ``pd.testing``
 * ``pd.Timedelta``
 * ``pd.TimedeltaIndex``
 * ``pd.timedelta_range``
@@ -768,7 +758,6 @@ primary use-case so we can make it happen faster!
 * ``pd.UInt64Dtype``
 * ``pd.UInt8Dtype``
 * ``pd.unique``
-* ``pd.util``
 * ``pd.value_counts``
 * ``pd.wide_to_long``
 

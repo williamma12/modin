@@ -2,6 +2,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import pandas
+
 from modin.engines.base.block_partitions import BaseBlockPartitions
 
 
@@ -1004,9 +1006,9 @@ class BaseQueryCompiler(object):
     # END Abstract methods for QueryCompiler
 
     @property
-    def __constructor__(self):
-        """By default, constructor method will invoke an init."""
-        return type(self)
+    def __constructor__(self, block_paritions_object, index, columns, dtypes=None):
+        """By default, constructor method will invoke an init"""
+        return type(self)(block_paritions_object, index, columns, dtypes)
 
     # __delitem__
     # This will change the shape of the resulting data.
@@ -1070,7 +1072,7 @@ class BaseQueryCompilerView(BaseQueryCompiler):
 
     def _set_data(self, new_data):
         """Note this setter will be called by the
-            `super(PandasDataManagerView).__init__` function
+            `super(BaseDataManagerView).__init__` function
         """
         self.parent_data = new_data
 
@@ -1078,9 +1080,14 @@ class BaseQueryCompilerView(BaseQueryCompiler):
 
     def global_idx_to_numeric_idx(self, axis, indices):
         raise NotImplementedError("Must be implemented in children classes")
-
     # END Abstract functions for QueryCompilerView
 
     @property
-    def __constructor__(self):
-        return type(self)
+    def __constructor__(
+        self,
+        block_partitions_object: BaseBlockPartitions,
+        index: pandas.Index,
+        columns: pandas.Index,
+        dtypes=None,
+    ):
+        return super(type(self), self)(block_partitions_object, index, columns, dtypes)

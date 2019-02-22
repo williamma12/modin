@@ -2112,6 +2112,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         Returns:
             DataManager containing the first n rows of the original DataManager.
         """
+        print(type(self))
         # We grab the front if it is transposed and flag as transposed so that
         # we are not physically updating the data from this manager. This
         # allows the implementation to stay modular and reduces data copying.
@@ -2131,7 +2132,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
             result._is_transposed = True
         else:
             result = self.__constructor__(
-                self.data.take(0, n), self.index[:n], self.columns, self._dtype_cache
+                self.data.take(0, n), self.index[:n], self.columns, dtypes=self._dtype_cache
             )
         return result
 

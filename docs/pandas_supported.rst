@@ -653,6 +653,8 @@ Performance will be affected by this.
 +--------------------+--------------------+----------------------------------------------------+
 | ``read_table``     | N                  | Defaults to pandas implementation                  |
 +--------------------+--------------------+----------------------------------------------------+
+| ``read_fwf``       | N                  | Defaults to pandas implementation                  |
++--------------------+--------------------+----------------------------------------------------+
 | ``read_parquet``   | N                  | Defaults to pandas implementation                  |
 +--------------------+--------------------+----------------------------------------------------+
 | ``read_json``      | N                  | Defaults to pandas implementation                  |
@@ -663,7 +665,7 @@ Performance will be affected by this.
 +--------------------+--------------------+----------------------------------------------------+
 | ``read_excel``     | N                  | Defaults to pandas implementation                  |
 +--------------------+--------------------+----------------------------------------------------+
-| ``read_hdf``       | N                  | Defaults to pandasa implementation                 |
+| ``read_hdf``       | N                  | Defaults to pandas implementation                  |
 +--------------------+--------------------+----------------------------------------------------+
 | ``read_feather``   | N                  | Defaults to pandas implementation                  |
 +--------------------+--------------------+----------------------------------------------------+
@@ -677,43 +679,98 @@ Performance will be affected by this.
 +--------------------+--------------------+----------------------------------------------------+
 | ``read_sql``       | Y                  |                                                    |
 +--------------------+--------------------+----------------------------------------------------+
+| ``read_sql_table`` | N                  | Defaults to pandas implementation                  |
++--------------------+--------------------+----------------------------------------------------+
 
 List of Other Supported Operations Available on Import
 ------------------------------------------------------
 
 If you ``import modin.pandas as pd`` the following operations are available from
-``pd.<op>``, e.g. ``pd.concat``. If you do not see an operation that pandas enables and
+``pd.<op>`` (e.g., ``pd.concat``). If you do not see an operation that pandas enables and
 would like to request it, feel free to `open an issue`_. Make sure you tell us your
 primary use-case so we can make it happen faster!
 
-* ``pd.concat``
-* ``pd.eval``
-* ``pd.unique``
-* ``pd.value_counts``
-* ``pd.cut``
-* ``pd.to_numeric``
-* ``pd.factorize``
-* ``pd.test``
-* ``pd.qcut``
-* ``pd.match``
-* ``pd.to_datetime``
-* ``pd.get_dummies``
-* ``pd.Panel``
-* ``pd.date_range``
-* ``pd.Index``
-* ``pd.MultiIndex``
-* ``pd.Series``
+* ``pd.array``
+* ``pd.api``
 * ``pd.bdate_range``
+* ``pd.Categorical``
+* ``pd.CategoricalDtype``
+* ``pd.CategoricalIndex``
+* ``pd.concat``
+* ``pd.cut``
+* ``pd.datetime``
 * ``pd.DatetimeIndex``
-* ``pd.to_timedelta``
+* ``pd.DatetimeTZDtype``
+* ``pd.DateOffset``
+* ``pd.date_range``
+* ``pd.describe_option``
+* ``pd.eval``
+* ``pd.ExcelFile``
+* ``pd.ExcelWriter``
+* ``pd.factorize``
+* ``pd.Float64Index``
+* ``pd.Grouper``
+* ``pd.get_dummies``
+* ``pd.get_option``
+* ``pd.HDFStore``
+* ``pd.Index``
+* ``pd.IndexSlice``
+* ``pd.Int16Dtype``
+* ``pd.Int32Dtype``
+* ``pd.Int64Dtype``
+* ``pd.Int8Dtype``
+* ``pd.Int64Index``
+* ``pd.Interval``
+* ``pd.IntervalDtype``
+* ``pd.IntervalIndex``
+* ``pd.interval_range``
+* ``pd.infer_freq``
+* ``pd.lreshape``
+* ``pd.match``
+* ``pd.merge_asof``
+* ``pd.merge_ordered``
+* ``pd.MultiIndex``
+* ``pd.notna``
+* ``pd.notnull``
+* ``pd.NaT``
+* ``pd.offset``
+* ``pd.options``
+* ``pd.option_context``
+* ``pd.Panel``
+* ``pd.Period``
+* ``pd.PeriodDtype``
+* ``pd.PeriodIndex``
+* ``pd.pivot``
+* ``pd.RangeIndex``
+* ``pd.test``
+* ``pd.tseries``
+* ``pd.Series``
 * ``pd.set_eng_float_format``
 * ``pd.set_option``
-* ``pd.CategoricalIndex``
+* ``pd.show_version``
+* ``pd.SparseArray``
+* ``pd.SparseDataFrame``
+* ``pd.SparseSeries``
+* ``pd.testing``
 * ``pd.Timedelta``
+* ``pd.TimedeltaIndex``
+* ``pd.timedelta_range``
+* ``pd.TimeGrouper``
 * ``pd.Timestamp``
-* ``pd.NaT``
-* ``pd.PeriodIndex``
-* ``pd.Categorical``
+* ``pd.to_datetime``
+* ``pd.to_msgpack``
+* ``pd.to_numeric``
+* ``pd.to_pickle``
+* ``pd.to_timedelta``
+* ``pd.qcut``
+* ``pd.UInt16Dtype``
+* ``pd.UInt32Dtype``
+* ``pd.UInt64Dtype``
+* ``pd.UInt8Dtype``
+* ``pd.unique``
+* ``pd.util``
+* ``pd.value_counts``
+* ``pd.wide_to_long``
 
 .. _`GitHub repository`: https://github.com/modin-project/modin/issues
 .. _`developer mailing list`: https://groups.google.com/forum/#!forum/modin-dev

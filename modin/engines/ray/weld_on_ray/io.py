@@ -15,7 +15,7 @@ import numpy as np
 
 from modin.error_message import ErrorMessage
 from modin.data_management.utils import split_result_of_axis_func_pandas
-from modin.data_management.query_compiler import PandasQueryCompiler
+from modin.data_management.query_compiler import WeldQueryCompiler
 from modin.engines.base.io import BaseIO
 from .block_partitions import RayBlockPartitions
 from .remote_partition import WeldOnRayRemotePartition

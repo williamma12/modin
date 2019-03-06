@@ -3,6 +3,7 @@ from __future__ import division
 from __future__ import print_function
 
 from modin.engines.base.block_partitions import BaseBlockPartitions
+from .base_query_compiler import BaseQueryCompiler
 
 
 class WeldQueryCompiler(BaseQueryCompiler):
@@ -971,7 +972,7 @@ class WeldQueryCompiler(BaseQueryCompiler):
         raise NotImplementedError("Must be implemented in children classes")
 
 
-class BaseQueryCompilerView(WeldQueryCompiler):
+class WeldQueryCompilerView(WeldQueryCompiler):
     """
     This class represent a view of the BaseQueryCompiler
 

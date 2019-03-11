@@ -122,3 +122,56 @@ def width_fn_pandas(df):
         return len(df.columns)
     else:
         return 1
+
+
+def split_result_of_axis_func_weld(axis, num_splits, result, length_list=None):
+    """Split the Weld result evenly based on the provided number of splits.
+
+    Args:
+        axis: The axis to split across.
+        num_splits: The number of even splits to create.
+        result: The result of the computation. This should be a Weld
+            DataFrameWeld.
+        length_list: The list of lengths to split this DataFrameWeld into. This
+            is used to return the DataFrame to its original partitioning schema.
+
+    Returns:
+        A list of Weld DataFrameWelds.
+    """
+    # TODO (williamma12): Until grizzly has its own concat, WeldOnRayAxisPartition
+    # will be based on 
+    if num_splits == 1:
+        return result
+    if length_list is not None:
+        length_list.insert(0, 0)
+        sums = np.cumsum(length_list)
+        if axis == 0:
+            return [result.iloc[sums[i] : sums[i + 1]] for i in range(len(sums) - 1)]
+        else:
+            return [result.iloc[:, sums[i] : sums[i + 1]] for i in range(len(sums) - 1)]
+    # We do this to restore block partitioning
+    chunksize = compute_chunksize(result, num_splits, axis=axis)
+    if axis == 0 or type(result) is pandas.Series:
+        return [
+            result.iloc[chunksize * i : chunksize * (i + 1)] for i in range(num_splits)
+        ]
+    else:
+        return [
+            result.iloc[:, chunksize * i : chunksize * (i + 1)]
+            for i in range(num_splits)
+        ]
+
+
+def length_fn_weld(df):
+    import grizzly.grizzly as gr
+    assert isinstance(df, (gr.DataFrameWeld, gr.SeriesWeld)), "{}".format(df)
+    return len(df)
+
+
+def width_fn_weld(df):
+    import grizzly.grizzly as gr
+    assert isinstance(df, (gr.DataFrameWeld, gr.SeriesWeld)), "{}".format(df)
+    if isinstance(df, gr.DataFrameWeld):
+        return len(df.columns)
+    else:
+        return 1

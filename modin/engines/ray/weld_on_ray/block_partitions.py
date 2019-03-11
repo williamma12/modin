@@ -9,7 +9,7 @@ from .remote_partition import WeldOnRayRemotePartition
 class RayBlockPartitions(BaseBlockPartitions):
     """This method implements the interface in `BaseBlockPartitions`."""
 
-    # This object uses RayRemotePartition objects as the underlying store.
+    # This object uses WeldOnRayRemotePartition objects as the underlying store.
     _partition_class = WeldOnRayRemotePartition
     _column_partitions_class = WeldOnRayColumnPartition
     _row_partition_class = WeldOnRayRowPartition

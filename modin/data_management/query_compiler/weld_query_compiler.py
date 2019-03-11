@@ -46,7 +46,24 @@ class WeldQueryCompiler(BaseQueryCompiler):
         Returns:
             A new Index object.
         """
-        raise NotImplementedError("Must be implemented in children classes")
+
+        def pandas_index_extraction(df, axis):
+            if not axis:
+                return df.index
+            else:
+                try:
+                    return df.columns
+                except AttributeError:
+                    return pandas.Index([])
+
+        index_obj = self.index if not axis else self.columns
+        old_blocks = self.data if compute_diff else None
+        new_indices = data_object.get_indices(
+            axis=axis,
+            index_func=lambda df: pandas_index_extraction(df, axis),
+            old_blocks=old_blocks,
+        )
+        return index_obj[new_indices] if compute_diff else new_indices
 
     def _get_index(self):
         raise NotImplementedError("Must be implemented in children classes")
@@ -143,7 +160,23 @@ class WeldQueryCompiler(BaseQueryCompiler):
         Returns:
             Pandas DataFrame of the DataManager.
         """
-        raise NotImplementedError("Must be implemented in children classes")
+        df = self.data.to_pandas(is_transposed=self._is_transposed)
+        if df.empty:
+            if len(self.columns) != 0:
+                data = [
+                    pandas.Series(dtype=self.dtypes[col_name], name=col_name)
+                    for col_name in self.columns
+                ]
+                df = pandas.concat(data, axis=1)
+            else:
+                df = pandas.DataFrame(index=self.index)
+        else:
+            ErrorMessage.catch_bugs_and_request_email(
+                len(df.index) != len(self.index) or len(df.columns) != len(self.columns)
+            )
+            df.index = self.index
+            df.columns = self.columns
+        return df
 
     @classmethod
     def from_pandas(cls, df, block_partitions_cls):
@@ -157,7 +190,11 @@ class WeldQueryCompiler(BaseQueryCompiler):
         Returns:
             Returns DataManager containing data from the Pandas DataFrame.
         """
-        raise NotImplementedError("Must be implemented in children classes")
+        new_index = df.index
+        new_columns = df.columns
+        new_dtypes = df.dtypes
+        new_data = block_partitions_cls.from_pandas(df)
+        return cls(new_data, new_index, new_columns, dtypes=new_dtypes)
     # END To/From Pandas
 
     # copartition
@@ -706,6 +743,9 @@ class WeldQueryCompiler(BaseQueryCompiler):
     # These operations require some global knowledge of the full column/row
     # that is being operated on. This means that we have to put all of that
     # data in the same place.
+    def _map_across_full_axis(self, axis, func):
+        return self.data.map_across_full_axis(axis, func)
+
     def cumsum(self, **kwargs):
         raise NotImplementedError("Must be implemented in children classes")
 
@@ -764,7 +804,23 @@ class WeldQueryCompiler(BaseQueryCompiler):
         Returns:
             DataManager containing the rows where the boolean expression is satisfied.
         """
-        raise NotImplementedError("Must be implemented in children classes")
+        columns = self.columns
+
+        def query_builder(df, **kwargs):
+            # This is required because of an Arrow limitation
+            # TODO revisit for Arrow error
+            df = df.copy()
+            df.index = pandas.RangeIndex(len(df))
+            df.columns = columns
+            df.query(expr, inplace=True, **kwargs)
+            df.columns = pandas.RangeIndex(len(df.columns))
+            return df
+
+        new_data = self._map_across_full_axis(1, new_data)
+        # Query removes rows, so we need to update the index
+        new_index = self.compute_index(0, new_data, True)
+
+        return self.__constructor__(new_data, new_index, self.columns, self.dtypes)
 
     def rank(self, **kwargs):
         """Computes numerical rank along axis. Equal values are set to the average.

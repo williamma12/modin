@@ -6,10 +6,12 @@ import pandas
 import ray
 
 from modin.engines.base.remote_partition import BaseRemotePartition
-from modin.data_management.utils import length_fn_pandas, width_fn_pandas
+from modin.data_management.utils import length_fn_weld, width_fn_weld
 
 
 class WeldOnRayRemotePartition(BaseRemotePartition):
+    """This method implements the interface in `BaseRemotePartitions`."""
+
     def __init__(self, object_id):
         assert type(object_id) is ray.ObjectID
 
@@ -39,7 +41,7 @@ class WeldOnRayRemotePartition(BaseRemotePartition):
             func: The function to apply.
 
         Returns:
-            A RayRemotePartition object.
+            A WeldOnRayRemotePartition object.
         """
         oid = self.oid
         self.call_queue.append((func, kwargs))
@@ -64,7 +66,7 @@ class WeldOnRayRemotePartition(BaseRemotePartition):
         )
         self.call_queue = []
 
-        return PandasOnRayRemotePartition(oid)
+        return WeldOnRayRemotePartition(oid)
 
     def add_to_apply_calls(self, func, **kwargs):
         # This is for lazy operators that don't change the state (e.g. iloc)
@@ -72,7 +74,7 @@ class WeldOnRayRemotePartition(BaseRemotePartition):
         return self
 
     def __copy__(self):
-        return PandasOnRayRemotePartition(object_id=self.oid)
+        return WeldOnRayRemotePartition(object_id=self.oid)
 
     def to_pandas(self):
         """Convert the object stored in this partition to a Pandas DataFrame.
@@ -96,9 +98,12 @@ class WeldOnRayRemotePartition(BaseRemotePartition):
         Returns:
             A `RayRemotePartition` object.
         """
-        # This will probably be a Grizzly object.
-        # Ray will serialize this object if you `ray.put` it. You may not want this.
-        ray.put(grizzly_obj)
+        import grizzly.grizzly as gr
+        if isinstance(obj, gr.DataFrameWeld):
+            grizzly_obj = obj
+        else:
+            grizzly_obj = gr.DataFrameWeld(obj)
+        return WeldOnRayRemotePartition(ray.put(grizzly_obj))
 
     @classmethod
     def preprocess_func(cls, func):

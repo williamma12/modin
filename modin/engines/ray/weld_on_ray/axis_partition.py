@@ -11,6 +11,11 @@ from .remote_partition import WeldOnRayRemotePartition
 
 
 class WeldOnRayAxisPartition(BaseAxisPartition):
+    """This method implements the interface in `BaseAxisPartitions`."""
+
+    # This object uses WeldOnRayRemotePartition objects as the underlying store.
+    _partition_class = WeldOnRayRemotePartition
+
     def __init__(self, list_of_blocks):
         # Unwrap from BaseRemotePartition object for ease of use
         self.list_of_blocks = [obj.oid for obj in list_of_blocks]
@@ -34,7 +39,7 @@ class WeldOnRayAxisPartition(BaseAxisPartition):
 
         if other_axis_partition is not None:
             return [
-                WeldOnRayRemotePartition(obj)
+                _partition_class(obj)
                 for obj in deploy_ray_func_between_two_axis_partitions._remote(
                     args=(self.axis, func, num_splits, len(self.list_of_blocks), kwargs)
                     + tuple(self.list_of_blocks + other_axis_partition.list_of_blocks),
@@ -45,7 +50,7 @@ class WeldOnRayAxisPartition(BaseAxisPartition):
         args = [self.axis, func, num_splits, kwargs]
         args.extend(self.list_of_blocks)
         return [
-            WeldOnRayRemotePartition(obj)
+            _partition_class(obj)
             for obj in deploy_ray_axis_func._remote(args, num_return_vals=num_splits)
         ]
 
@@ -65,7 +70,7 @@ class WeldOnRayAxisPartition(BaseAxisPartition):
         args = [self.axis, func, num_splits, kwargs]
         args.extend(self.list_of_blocks)
         return [
-            WeldOnRayRemotePartition(obj)
+            _partition_class(obj)
             for obj in deploy_ray_axis_func._remote(args, num_return_vals=num_splits)
         ]
 
@@ -96,16 +101,19 @@ def deploy_ray_axis_func(axis, func, num_splits, kwargs, *partitions):
         axis: The axis to perform the function along.
         func: The function to perform.
         num_splits: The number of splits to return
-            (see `split_result_of_axis_func_pandas`)
+            (see `split_result_of_axis_func_weld`)
         kwargs: A dictionary of keyword arguments.
         partitions: All partitions that make up the full axis (row or column)
 
     Returns:
         A list of Pandas DataFrames.
     """
-    dataframe = pandas.concat(partitions, axis=axis, copy=False)
-    result = func(dataframe, **kwargs)
-    if isinstance(result, pandas.Series):
+    import grizzly.grizzly as gr
+    dataframe = pandas.concat(partitions.to_pandas(), axis=axis, copy=False)
+    dataframe_weld = gr.DataFrameWeld(dataframe)
+    result = func(dataframe_weld, **kwargs)
+    if isinstance(result, gr.SeriesWeld):
+        # TODO HERE
         return [result] + [pandas.Series([]) for _ in range(num_splits - 1)]
     if num_splits != len(partitions):
         lengths = None
@@ -118,7 +126,7 @@ def deploy_ray_axis_func(axis, func, num_splits, kwargs, *partitions):
             lengths = [len(part.columns) for part in partitions]
             if sum(lengths) != len(result.columns):
                 lengths = None
-    return split_result_of_axis_func_pandas(axis, num_splits, result, lengths)
+    return split_result_of_axis_func_weld(axis, num_splits, result, lengths)
 
 
 @ray.remote

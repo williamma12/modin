@@ -121,11 +121,11 @@ class WeldOnRayRemotePartition(BaseRemotePartition):
 
     @classmethod
     def length_extraction_fn(cls):
-        return length_fn_pandas
+        return length_fn_weld
 
     @classmethod
     def width_extraction_fn(cls):
-        return width_fn_pandas
+        return width_fn_weld
 
     @classmethod
     def empty(cls):

@@ -138,8 +138,6 @@ def split_result_of_axis_func_weld(axis, num_splits, result, length_list=None):
     Returns:
         A list of Weld DataFrameWelds.
     """
-    # TODO (williamma12): Until grizzly has its own concat, WeldOnRayAxisPartition
-    # will be based on 
     if num_splits == 1:
         return result
     if length_list is not None:

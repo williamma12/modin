@@ -243,6 +243,16 @@ class GandivaOnRayFactory(BaseFactory):
         )
 
 
+class WeldOnRayFactory(BaseFactory):
+
+    if partition_format == "Weld" and not os.environ.get(
+        "MODIN_EXPERIMENTAL", False
+    ):
+        raise ImportError(
+            "Weld on Ray is only accessible through the experimental API.\nRun `import modin.experimental.pandas as pd` to use Weld on Ray."
+        )
+
+
 class ExperimentalBaseFactory(BaseFactory):
     @classmethod
     def _determine_engine(cls):
@@ -302,11 +312,12 @@ class ExperimentalGandivaOnRayFactory(BaseFactory):  # pragma: no cover
     io_cls = GandivaOnRayIO
 
 
-class WeldOnRayFactory(BaseFactory):
+class ExperimentalWeldOnRayFactory(BaseFactory):
 
     from modin.engines.ray.weld_on_ray.io import WeldOnRayIO
     from modin.engines.ray.weld_on_ray.block_partitions import RayBlockPartitions
+    from modin.data_management.query_compiler import WeldQueryCompiler
 
-    query_compiler_cls = PandasQueryCompiler
+    query_compiler_cls = WeldQueryCompiler
     block_partitions_cls = RayBlockPartitions
     io_cls = WeldOnRayIO

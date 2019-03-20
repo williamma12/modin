@@ -6,7 +6,7 @@ import pandas
 import ray
 
 from modin.engines.base.axis_partition import BaseAxisPartition
-from modin.data_management.utils import split_result_of_axis_func_pandas
+from modin.data_management.utils import split_result_of_axis_func_weld
 from .remote_partition import WeldOnRayRemotePartition
 
 
@@ -39,7 +39,7 @@ class WeldOnRayAxisPartition(BaseAxisPartition):
 
         if other_axis_partition is not None:
             return [
-                _partition_class(obj)
+                self._partition_class(obj)
                 for obj in deploy_ray_func_between_two_axis_partitions._remote(
                     args=(self.axis, func, num_splits, len(self.list_of_blocks), kwargs)
                     + tuple(self.list_of_blocks + other_axis_partition.list_of_blocks),
@@ -50,7 +50,7 @@ class WeldOnRayAxisPartition(BaseAxisPartition):
         args = [self.axis, func, num_splits, kwargs]
         args.extend(self.list_of_blocks)
         return [
-            _partition_class(obj)
+            self._partition_class(obj)
             for obj in deploy_ray_axis_func._remote(args, num_return_vals=num_splits)
         ]
 
@@ -70,7 +70,7 @@ class WeldOnRayAxisPartition(BaseAxisPartition):
         args = [self.axis, func, num_splits, kwargs]
         args.extend(self.list_of_blocks)
         return [
-            _partition_class(obj)
+            self._partition_class(obj)
             for obj in deploy_ray_axis_func._remote(args, num_return_vals=num_splits)
         ]
 
@@ -109,11 +109,11 @@ def deploy_ray_axis_func(axis, func, num_splits, kwargs, *partitions):
         A list of Pandas DataFrames.
     """
     import grizzly.grizzly as gr
-    dataframe = pandas.concat(partitions.to_pandas(), axis=axis, copy=False)
+    dataframe = pandas.concat([part.to_pandas() for part in partitions], axis=axis, copy=False)
     dataframe_weld = gr.DataFrameWeld(dataframe)
     result = func(dataframe_weld, **kwargs)
     if isinstance(result, gr.SeriesWeld):
-        # TODO HERE
+        # TODO (williamma12): Have query handle series results
         return [result] + [pandas.Series([]) for _ in range(num_splits - 1)]
     if num_splits != len(partitions):
         lengths = None
@@ -139,7 +139,7 @@ def deploy_ray_func_between_two_axis_partitions(
         axis: The axis to perform the function along.
         func: The function to perform.
         num_splits: The number of splits to return
-            (see `split_result_of_axis_func_pandas`).
+            (see `split_result_of_axis_func_weld`).
         len_of_left: The number of values in `partitions` that belong to the
             left data set.
         kwargs: A dictionary of keyword arguments.
@@ -149,11 +149,12 @@ def deploy_ray_func_between_two_axis_partitions(
     Returns:
         A list of Pandas DataFrames.
     """
+    raise NotImplementedError
     lt_frame = pandas.concat(list(partitions[:len_of_left]), axis=axis, copy=False)
     rt_frame = pandas.concat(list(partitions[len_of_left:]), axis=axis, copy=False)
 
     result = func(lt_frame, rt_frame, **kwargs)
-    return split_result_of_axis_func_pandas(axis, num_splits, result)
+    return split_result_of_axis_func_weld(axis, num_splits, result)
 
 
 @ray.remote
@@ -170,6 +171,7 @@ def deploy_ray_shuffle_func(axis, func, numsplits, kwargs, *partitions):
     Returns:
         A list of Pandas DataFrames.
     """
+    raise NotImplementedError
     dataframe = pandas.concat(partitions, axis=axis, copy=False)
     result = func(dataframe, numsplits=numsplits, **kwargs)
 

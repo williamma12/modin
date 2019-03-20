@@ -1,800 +1,13 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+import pandas
+from pandas.core.computation.expr import Expr
+from pandas.core.computation.scope import Scope
+from pandas.core.computation.ops import UnaryOp, BinOp, Term, MathCall, Constant
 
-from modin.engines.base.block_partitions import BaseBlockPartitions
-from .base_query_compiler import BaseQueryCompiler
+from .pandas_query_compiler import PandasQueryCompiler
+from modin.error_message import ErrorMessage
 
 
-class WeldQueryCompiler(BaseQueryCompiler):
-    """This class implements the logic necessary for operating on partitions
-        with a weld backend. This logic is specific to weld."""
-
-    def __init__(
-        self, block_partitions_object: BaseBlockPartitions, index, columns, dtypes=None
-    ):
-        assert isinstance(block_partitions_object, BaseBlockPartitions)
-        self.data = block_partitions_object
-        self.index = index
-        self.columns = columns
-        if dtypes is not None:
-            self._dtype_cache = dtypes
-
-    # Dtypes and Indexing Methods
-    def _get_dtype(self):
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def _set_dtype(self, dtypes):
-        raise NotImplementedError("Must be implemented in children classes")
-
-    dtypes = property(_get_dtype, _set_dtype)
-
-    def compute_index(self, axis, data_object, compute_diff=True):
-        """Computes the index after a number of rows have been removed.
-
-        Note: In order for this to be used properly, the indexes must not be
-            changed before you compute this.
-
-        Args:
-            axis: The axis to extract the index from.
-            data_object: The new data object to extract the index from.
-            compute_diff: True to use `self` to compute the index from self
-                rather than data_object. This is used when the dimension of the
-                index may have changed, but the deleted rows/columns are
-                unknown.
-
-        Returns:
-            A new Index object.
-        """
-
-        def pandas_index_extraction(df, axis):
-            if not axis:
-                return df.index
-            else:
-                try:
-                    return df.columns
-                except AttributeError:
-                    return pandas.Index([])
-
-        index_obj = self.index if not axis else self.columns
-        old_blocks = self.data if compute_diff else None
-        new_indices = data_object.get_indices(
-            axis=axis,
-            index_func=lambda df: pandas_index_extraction(df, axis),
-            old_blocks=old_blocks,
-        )
-        return index_obj[new_indices] if compute_diff else new_indices
-
-    def _get_index(self):
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def _get_columns(self):
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def _set_index(self, new_index):
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def _set_columns(self, new_columns):
-        raise NotImplementedError("Must be implemented in children classes")
-
-    columns = property(_get_columns, _set_columns)
-    index = property(_get_index, _set_index)
-    # END dtypes and indexing methods
-
-    # Metadata modification methods
-    def add_prefix(self, prefix):
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def add_suffix(self, suffix):
-        raise NotImplementedError("Must be implemented in children classes")
-
-    # END Metadata modification methods
-
-    # copy
-    # For copy, we don't want a situation where we modify the metadata of the
-    # copies if we end up modifying something here. We copy all of the metadata
-    # to prevent that.
-    def copy(self):
-        raise NotImplementedError("Must be implemented in children classes")
-
-    # END copy
-
-    # join and append helper functions
-    def _join_index_objects(self, axis, other_index, how, sort=True):
-        """Joins a pair of index objects (columns or rows) by a given strategy.
-
-        Args:
-            axis: The axis index object to join (0 for columns, 1 for index).
-            other_index: The other_index to join on.
-            how: The type of join to join to make (e.g. right, left).
-
-        Returns:
-            Joined indices.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def join(self, other, **kwargs):
-        """Joins a list or two objects together.
-
-        Args:
-            other: The other object(s) to join on.
-
-        Returns:
-            Joined objects.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def concat(self, axis, other, **kwargs):
-        """Concatenates two objects together.
-
-        Args:
-            axis: The axis index object to join (0 for columns, 1 for index).
-            other: The other_index to concat with.
-
-        Returns:
-            Concatenated objects.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def _append_list_of_managers(self, others, axis, **kwargs):
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def _join_list_of_managers(self, others, **kwargs):
-        raise NotImplementedError("Must be implemented in children classes")
-
-    # END join and append helper functions
-
-    # Data Management Methods
-    def free(self):
-        """In the future, this will hopefully trigger a cleanup of this object.
-        """
-        # TODO create a way to clean up this object.
-        raise NotImplementedError("Must be implemented in children classes")
-
-    # END Data Management Methods
-
-    # To/From Pandas
-    def to_pandas(self):
-        """Converts Modin DataFrame to Pandas DataFrame.
-
-        Returns:
-            Pandas DataFrame of the DataManager.
-        """
-        df = self.data.to_pandas(is_transposed=self._is_transposed)
-        if df.empty:
-            if len(self.columns) != 0:
-                data = [
-                    pandas.Series(dtype=self.dtypes[col_name], name=col_name)
-                    for col_name in self.columns
-                ]
-                df = pandas.concat(data, axis=1)
-            else:
-                df = pandas.DataFrame(index=self.index)
-        else:
-            ErrorMessage.catch_bugs_and_request_email(
-                len(df.index) != len(self.index) or len(df.columns) != len(self.columns)
-            )
-            df.index = self.index
-            df.columns = self.columns
-        return df
-
-    @classmethod
-    def from_pandas(cls, df, block_partitions_cls):
-        """Improve simple Pandas DataFrame to an advanced and superior Modin DataFrame.
-
-        Args:
-            cls: DataManger object to convert the DataFrame to.
-            df: Pandas DataFrame object.
-            block_partitions_cls: BlockParitions object to store partitions
-
-        Returns:
-            Returns DataManager containing data from the Pandas DataFrame.
-        """
-        new_index = df.index
-        new_columns = df.columns
-        new_dtypes = df.dtypes
-        new_data = block_partitions_cls.from_pandas(df)
-        return cls(new_data, new_index, new_columns, dtypes=new_dtypes)
-    # END To/From Pandas
-
-    # copartition
-    def copartition(self, axis, other, how_to_join, sort, force_repartition=False):
-        """Copartition two QueryCompiler objects.
-
-        Args:
-            axis: The axis to copartition along.
-            other: The other Query Compiler(s) to copartition against.
-            how_to_join: How to manage joining the index object ("left", "right", etc.)
-            sort: Whether or not to sort the joined index.
-            force_repartition: Whether or not to force the repartitioning. By default,
-                this method will skip repartitioning if it is possible. This is because
-                reindexing is extremely inefficient. Because this method is used to
-                `join` or `append`, it is vital that the internal indices match.
-
-        Returns:
-            A tuple (left query compiler, right query compiler list, joined index).
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    # END copartition
-
-    # inter-data operations (e.g. add, sub)
-    # These operations require two DataFrames and will change the shape of the
-    # data if the index objects don't match. An outer join + op is performed,
-    # such that columns/rows that don't have an index on the other DataFrame
-    # result in NaN values.
-    def inter_manager_operations(self, other, how_to_join, func):
-        """Inter-data operations (e.g. add, sub).
-
-        Args:
-            other: The other Manager for the operation.
-            how_to_join: The type of join to join to make (e.g. right, outer).
-
-        Returns:
-            New DataManager with new data and index.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def add(self, other, **kwargs):
-        """Adds this manager with other object (manager or scalar).
-
-        Args:
-            other: The other object (manager or scalar).
-
-        Returns:
-            New DataManager with added data and new index.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def div(self, other, **kwargs):
-        """Divides this manager with other object (manager or scalar).
-
-        Args:
-            other: The other object (manager or scalar).
-
-        Returns:
-            New DataManager with divided data and new index.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def eq(self, other, **kwargs):
-        """Compares equality (==) with other object (manager or scalar).
-
-        Args:
-            other: The other object (manager or scalar).
-
-        Returns:
-            New DataManager with compared data and index.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def floordiv(self, other, **kwargs):
-        """Floordivs this manager with other object (manager or scalar).
-
-        Args:
-            other: The other object (manager or scalar).
-
-        Returns:
-            New DataManager with floordiv-ed data and index.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def ge(self, other, **kwargs):
-        """Compares this manager >= than other object (manager or scalar).
-
-        Args:
-            other: The other object (manager or scalar).
-
-        Returns:
-            New DataManager with compared data and index.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def gt(self, other, **kwargs):
-        """Compares this manager > than other object (manager or scalar).
-
-        Args:
-            other: The other object (manager or scalar).
-
-        Returns:
-            New DataManager with compared data and index.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def le(self, other, **kwargs):
-        """Compares this manager < than other object (manager or scalar).
-
-        Args:
-            other: The other object (manager or scalar).
-
-        Returns:
-            New DataManager with compared data and index.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def lt(self, other, **kwargs):
-        """Compares this manager <= than other object (manager or scalar).
-
-        Args:
-            other: The other object (manager or scalar).
-
-        Returns:
-            New DataManager with compared data and index.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def mod(self, other, **kwargs):
-        """Mods this manager against other object (manager or scalar).
-
-        Args:
-            other: The other object (manager or scalar).
-
-        Returns:
-            New DataManager with mod-ed data and index.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def mul(self, other, **kwargs):
-        """Multiplies this manager against other object (manager or scalar).
-
-        Args:
-            other: The other object (manager or scalar).
-
-        Returns:
-            New DataManager with multiplied data and index.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def ne(self, other, **kwargs):
-        """Compares this manager != to other object (manager or scalar).
-
-        Args:
-            other: The other object (manager or scalar).
-
-        Returns:
-            New DataManager with compared data and index.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def pow(self, other, **kwargs):
-        """Exponential power of this manager to other object (manager or scalar).
-
-        Args:
-            other: The other object (manager or scalar).
-
-        Returns:
-            New DataManager with pow-ed data and index.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def rdiv(self, other, **kwargs):
-        """Divides other object (manager or scalar) with this manager.
-
-        Args:
-            other: The other object (manager or scalar).
-
-        Returns:
-            New DataManager with divided data and new index.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def rfloordiv(self, other, **kwargs):
-        """Floordivs this manager with other object (manager or scalar).
-
-        Args:
-            other: The other object (manager or scalar).
-
-        Returns:
-            New DataManager with floordiv-ed data and index.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def rmod(self, other, **kwargs):
-        """Mods this manager with other object (manager or scalar).
-
-        Args:
-            other: The other object (manager or scalar).
-
-        Returns:
-            New DataManager with mod data and index.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def rpow(self, other, **kwargs):
-        """Exponential power of other object (manager or scalar) to this manager.
-
-        Args:
-            other: The other object (manager or scalar).
-
-        Returns:
-            New DataManager with pow-ed data and new index.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def rsub(self, other, **kwargs):
-        """Subtracts other object (manager or scalar) from this manager.
-
-        Args:
-            other: The other object (manager or scalar).
-
-        Returns:
-            New DataManager with subtracted data and new index.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def sub(self, other, **kwargs):
-        """Subtracts this manager from other object (manager or scalar).
-
-        Args:
-            other: The other object (manager or scalar).
-
-        Returns:
-            New DataManager with subtracted data and new index.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def truediv(self, other, **kwargs):
-        """Divides this manager with other object (manager or scalar).
-           Functionally same as div
-
-        Args:
-            other: The other object (manager or scalar).
-
-        Returns:
-            New DataManager with divided data and new index.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def clip(self, lower, upper, **kwargs):
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def update(self, other, **kwargs):
-        """Uses other manager to update corresponding values in this manager.
-
-        Args:
-            other: The other manager.
-
-        Returns:
-            New DataManager with updated data and index.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def where(self, cond, other, **kwargs):
-        """Gets values from this manager where cond is true else from other.
-
-        Args:
-            cond: Condition on which to evaluate values.
-
-        Returns:
-            New DataManager with updated data and index.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    # END Inter-data operations
-
-    # Transpose
-    def transpose(self, *args, **kwargs):
-        """Transposes this DataManager.
-
-        Returns:
-            Transposed new DataManager.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    # END Transpose
-
-    # reindex/reset_index (may shuffle data)
-    def reindex(self, axis, labels, **kwargs):
-        """Fits a new index for this Manger.
-
-        Args:
-            axis: The axis index object to target the reindex on.
-            labels: New labels to conform 'axis' on to.
-
-        Returns:
-            New DataManager with updated data and new index.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def reset_index(self, **kwargs):
-        """Removes all levels from index and sets a default level_0 index.
-
-        Returns:
-            New DataManager with updated data and reset index.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-    # END reindex/reset_index
-
-    # Full Reduce operations
-    #
-    # These operations result in a reduced dimensionality of data.
-    # Currently, this means a Pandas Series will be returned, but in the future
-    # we will implement a Distributed Series, and this will be returned
-    # instead.
-    def count(self, **kwargs):
-        """Counts the number of non-NaN objects for each column or row.
-
-        Return:
-            Pandas series containing counts of non-NaN objects from each column or row.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def max(self, **kwargs):
-        """Returns the maximum value for each column or row.
-
-        Return:
-            Pandas series with the maximum values from each column or row.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def mean(self, **kwargs):
-        """Returns the mean for each numerical column or row.
-
-        Return:
-            Pandas series containing the mean from each numerical column or row.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def min(self, **kwargs):
-        """Returns the minimum from each column or row.
-
-        Return:
-            Pandas series with the minimum value from each column or row.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def prod(self, **kwargs):
-        """Returns the product of each numerical column or row.
-
-        Return:
-            Pandas series with the product of each numerical column or row.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def sum(self, **kwargs):
-        """Returns the sum of each numerical column or row.
-
-        Return:
-            Pandas series with the sum of each numerical column or row.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-    # END full Reduce operations
-
-    # map partitions operations
-    # These operations are operations that apply a function to every partition.
-    def abs(self):
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def applymap(self, func):
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def isin(self, **kwargs):
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def isna(self):
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def isnull(self):
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def negative(self, **kwargs):
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def notna(self):
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def notnull(self):
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def round(self, **kwargs):
-        raise NotImplementedError("Must be implemented in children classes")
-    # END map partitions operations
-
-    # map partitions across select indices
-    def astype(self, col_dtypes, **kwargs):
-        """Converts columns dtypes to given dtypes.
-
-        Args:
-            col_dtypes: Dictionary of {col: dtype,...} where col is the column
-                name and dtype is a numpy dtype.
-
-        Returns:
-            DataFrame with updated dtypes.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-    # END map partitions across select indices
-
-    # column/row partitions reduce operations
-    #
-    # These operations result in a reduced dimensionality of data.
-    # Currently, this means a Pandas Series will be returned, but in the future
-    # we will implement a Distributed Series, and this will be returned
-    # instead.
-    def all(self, **kwargs):
-        """Returns whether all the elements are true, potentially over an axis.
-
-        Return:
-            Pandas Series containing boolean values or boolean.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def any(self, **kwargs):
-        """Returns whether any the elements are true, potentially over an axis.
-
-        Return:
-            Pandas Series containing boolean values or boolean.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def first_valid_index(self):
-        """Returns index of first non-NaN/NULL value.
-
-        Return:
-            Scalar of index name.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def idxmax(self, **kwargs):
-        """Returns the first occurance of the maximum over requested axis.
-
-        Returns:
-            Series containing the maximum of each column or axis.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def idxmin(self, **kwargs):
-        """Returns the first occurance of the minimum over requested axis.
-
-        Returns:
-            Series containing the minimum of each column or axis.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def last_valid_index(self):
-        """Returns index of last non-NaN/NULL value.
-
-        Return:
-            Scalar of index name.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def median(self, **kwargs):
-        """Returns median of each column or row.
-
-        Returns:
-            Series containing the median of each column or row.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def memory_usage(self, **kwargs):
-        """Returns the memory usage of each column.
-
-        Returns:
-            Series containing the memory usage of each column.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def nunique(self, **kwargs):
-        """Returns the number of unique items over each column or row.
-
-        Returns:
-            Series of ints indexed by column or index names.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def quantile_for_single_value(self, **kwargs):
-        """Returns quantile of each column or row.
-
-        Returns:
-            Series containing the quantile of each column or row.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def skew(self, **kwargs):
-        """Returns skew of each column or row.
-
-        Returns:
-            Series containing the skew of each column or row.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def std(self, **kwargs):
-        """Returns standard deviation of each column or row.
-
-        Returns:
-            Series containing the standard deviation of each column or row.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def to_datetime(self, **kwargs):
-        """Converts the Manager to a Series of DateTime objects.
-
-        Returns:
-            Series of DateTime objects.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def var(self, **kwargs):
-        """Returns variance of each column or row.
-
-        Returns:
-            Series containing the variance of each column or row.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-    # END column/row partitions reduce operations
-
-    # column/row partitions reduce operations over select indices
-    #
-    # These operations result in a reduced dimensionality of data.
-    # Currently, this means a Pandas Series will be returned, but in the future
-    # we will implement a Distributed Series, and this will be returned
-    # instead.
-    def describe(self, **kwargs):
-        """Generates descriptive statistics.
-
-        Returns:
-            DataFrame object containing the descriptive statistics of the DataFrame.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    # END column/row partitions reduce operations over select indices
-
-    # Map across rows/columns
-    # These operations require some global knowledge of the full column/row
-    # that is being operated on. This means that we have to put all of that
-    # data in the same place.
-    def _map_across_full_axis(self, axis, func):
-        return self.data.map_across_full_axis(axis, func)
-
-    def cumsum(self, **kwargs):
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def cummax(self, **kwargs):
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def cummin(self, **kwargs):
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def cumprod(self, **kwargs):
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def diff(self, **kwargs):
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def dropna(self, **kwargs):
-        """Returns a new QueryCompiler with null values dropped along given axis.
-        Return:
-            New QueryCompiler
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def eval(self, expr, **kwargs):
-        """Returns a new DataManager with expr evaluated on columns.
-
-        Args:
-            expr: The string expression to evaluate.
-
-        Returns:
-            A new PandasDataManager with new columns after applying expr.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def mode(self, **kwargs):
-        """Returns a new DataManager with modes calculated for each label along given axis.
-
-        Returns:
-            A new PandasDataManager with modes calculated.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def fillna(self, **kwargs):
-        """Replaces NaN values with the method provided.
-
-        Returns:
-            A new PandasDataManager with null values filled.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
+class WeldQueryCompiler(PandasQueryCompiler):
     def query(self, expr, **kwargs):
         """Query columns of the DataManager with a boolean expression.
 
@@ -804,285 +17,169 @@ class WeldQueryCompiler(BaseQueryCompiler):
         Returns:
             DataManager containing the rows where the boolean expression is satisfied.
         """
-        columns = self.columns
 
-        def query_builder(df, **kwargs):
-            # This is required because of an Arrow limitation
-            # TODO revisit for Arrow error
-            df = df.copy()
-            df.index = pandas.RangeIndex(len(df))
-            df.columns = columns
-            df.query(expr, inplace=True, **kwargs)
-            df.columns = pandas.RangeIndex(len(df.columns))
-            return df
+        def gen_table_expr(table, expr):
+            resolver = {
+                name: FakeSeries(dtype.to_pandas_dtype())
+                for name, dtype in zip(table.schema.names, table.schema.types)
+            }
+            scope = Scope(level=0, resolvers=(resolver,))
+            return Expr(expr=expr, env=scope)
+            
+        unary_ops = {"~": "not"}
+        math_calls = {"log": "log", "exp": "exp", "log10": "log10", "cbrt": "cbrt"}
+        bin_ops = {
+            "+": "add",
+            "-": "subtract",
+            "*": "multiply",
+            "/": "divide",
+            "**": "power",
+        }
+        cmp_ops = {
+            "==": "equal",
+            "!=": "not_equal",
+            ">": "greater_than",
+            "<": "less_than",
+            "<=": "less_than_or_equal_to",
+            ">": "greater_than",
+            ">=": "greater_than_or_equal_to",
+            "like": "like",
+        }
 
-        new_data = self._map_across_full_axis(1, new_data)
+        def build_node(table, terms, builder):
+            if isinstance(terms, Constant):
+                return builder.make_literal(
+                    terms.value, (pa.from_numpy_dtype(terms.return_type))
+                )
+
+            if isinstance(terms, Term):
+                return builder.make_field(table.schema.field_by_name(terms.name))
+
+            if isinstance(terms, BinOp):
+                lnode = build_node(table, terms.lhs, builder)
+                rnode = build_node(table, terms.rhs, builder)
+                return_type = pa.from_numpy_dtype(terms.return_type)
+
+                if terms.op == "&":
+                    return builder.make_and([lnode, rnode])
+                if terms.op == "|":
+                    return builder.make_or([lnode, rnode])
+                if terms.op in cmp_ops:
+                    assert return_type == pa.bool_()
+                    return builder.make_function(
+                        cmp_ops[terms.op], [lnode, rnode], return_type
+                    )
+                if terms.op in bin_ops:
+                    return builder.make_function(
+                        bin_ops[terms.op], [lnode, rnode], return_type
+                    )
+
+            if isinstance(terms, UnaryOp):
+                return_type = pa.from_numpy_dtype(terms.return_type)
+                return builder.make_function(
+                    unary_ops[terms.op],
+                    [build_node(table, terms.operand, builder)],
+                    return_type,
+                )
+
+            if isinstance(terms, MathCall):
+                return_type = pa.from_numpy_dtype(terms.return_type)
+                childern = [
+                    build_node(table, child, builder) for child in terms.operands
+                ]
+                return builder.make_function(
+                    math_calls[terms.op], childern, return_type
+                )
+
+            raise TypeError("Unsupported term type: %s" % terms)
+
+        def can_be_condition(expr):
+            if isinstance(expr.terms, BinOp):
+                if expr.terms.op in cmp_ops or expr.terms.op in ("&", "|"):
+                    return True
+            elif isinstance(expr.terms, UnaryOp):
+                if expr.terms.op == "~":
+                    return True
+            return False
+
+        def filter_with_selection_vector(table, s):
+            record_batch = table.to_batches()[0]
+            indices = s.to_array()  # .to_numpy()
+            new_columns = [
+                pa.array(c.to_numpy()[indices]) for c in record_batch.columns
+            ]
+            return pa.Table.from_arrays(new_columns, record_batch.schema.names)
+
+        def gandiva_query(table, query):
+            expr = gen_table_expr(table, query)
+            if not can_be_condition(expr):
+                raise ValueError("Root operation should be a filter.")
+            builder = gandiva.TreeExprBuilder()
+            root = build_node(table, expr.terms, builder)
+            cond = builder.make_condition(root)
+            filt = gandiva.make_filter(table.schema, cond)
+            sel_vec = filt.evaluate(table.to_batches()[0], pa.default_memory_pool())
+            result = filter_with_selection_vector(table, sel_vec)
+            return result
+
+        def gandiva_query2(table, query):
+            expr = gen_table_expr(table, query)
+            if not can_be_condition(expr):
+                raise ValueError("Root operation should be a filter.")
+            builder = gandiva.TreeExprBuilder()
+            root = build_node(table, expr.terms, builder)
+            cond = builder.make_condition(root)
+            filt = gandiva.make_filter(table.schema, cond)
+            return filt
+
+        def query_builder(arrow_table, **kwargs):
+            return gandiva_query(arrow_table, kwargs.get("expr", ""))
+
+        kwargs["expr"] = expr
+        func = self._prepare_method(query_builder, **kwargs)
+        new_data = self._map_across_full_axis(1, func)
         # Query removes rows, so we need to update the index
-        new_index = self.compute_index(0, new_data, True)
+        new_index = self.compute_index(0, new_data, False)
+        return self.__constructor__(
+            new_data, new_index, self.columns, self._dtype_cache
+        )
 
-        return self.__constructor__(new_data, new_index, self.columns, self.dtypes)
+    def compute_index(self, axis, data_object, compute_diff=True):
+        def arrow_index_extraction(table, axis):
+            if not axis:
+                return pandas.Index(table.column(table.num_columns - 1))
+            else:
+                try:
+                    return pandas.Index(table.columns)
+                except AttributeError:
+                    return []
 
-    def rank(self, **kwargs):
-        """Computes numerical rank along axis. Equal values are set to the average.
+        index_obj = self.index if not axis else self.columns
+        old_blocks = self.data if compute_diff else None
+        new_indices = data_object.get_indices(
+            axis=axis,
+            index_func=lambda df: arrow_index_extraction(df, axis),
+            old_blocks=old_blocks,
+        )
+        return index_obj[new_indices] if compute_diff else new_indices
 
-        Returns:
-            DataManager containing the ranks of the values along an axis.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def sort_index(self, **kwargs):
-        """Sorts the data with respect to either the columns or the indices.
-
-        Returns:
-            DataManager containing the data sorted by columns or indices.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-    # END map across rows/columns
-
-    # Map across rows/columns
-    # These operations require some global knowledge of the full column/row
-    # that is being operated on. This means that we have to put all of that
-    # data in the same place.
-    def quantile_for_list_of_values(self, **kwargs):
-        """Returns Manager containing quantiles along an axis for numeric columns.
-
-        Returns:
-            DataManager containing quantiles of original DataManager along an axis.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-    # END map across rows/columns
-
-    # head/tail/front/back
-    def head(self, n):
-        """Returns the first n rows.
-
-        Args:
-            n: Integer containing the number of rows to return.
+    def to_pandas(self):
+        """Converts Modin DataFrame to Pandas DataFrame.
 
         Returns:
-            DataManager containing the first n rows of the original DataManager.
+            Pandas DataFrame of the DataManager.
         """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def tail(self, n):
-        """Returns the last n rows.
-
-        Args:
-            n: Integer containing the number of rows to return.
-
-        Returns:
-            DataManager containing the last n rows of the original DataManager.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def front(self, n):
-        """Returns the first n columns.
-
-        Args:
-            n: Integer containing the number of columns to return.
-
-        Returns:
-            DataManager containing the first n columns of the original DataManager.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def back(self, n):
-        """Returns the last n columns.
-
-        Args:
-            n: Integer containing the number of columns to return.
-
-        Returns:
-            DataManager containing the last n columns of the original DataManager.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-    # END head/tail/front/back
-
-    # __getitem__ methods
-    def getitem_single_key(self, key):
-        """Get item for a single target index.
-
-        Args:
-            key: Target index by which to retrieve data.
-
-        Returns:
-            A new Query Compiler.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def getitem_column_array(self, key):
-        """Get column data for target labels.
-
-        Args:
-            key: Target labels by which to retrieve data.
-
-        Returns:
-            A new Query Compiler.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def getitem_row_array(self, key):
-        """Get row data for target labels.
-
-        Args:
-            key: Target numeric indices by which to retrieve data.
-
-        Returns:
-            A new Query Compiler.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-    # END __getitem__ methods
-
-    # insert
-    # This method changes the shape of the resulting data. In Pandas, this
-    # operation is always inplace, but this object is immutable, so we just
-    # return a new one from here and let the front end handle the inplace
-    # update.
-    def insert(self, loc, column, value):
-        """Insert new column data.
-
-        Args:
-            loc: Insertion index.
-            column: Column labels to insert.
-            value: Dtype object values to insert.
-
-        Returns:
-            A new QueryCompiler with new data inserted.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-    # END insert
-
-    # drop
-    def drop(self, index=None, columns=None):
-        """Remove row data for target index and columns.
-
-        Args:
-            index: Target index to drop.
-            columns: Target columns to drop.
-
-        Returns:
-            A new PandasDataManager.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-    # END drop
-
-    # UDF (apply and agg) methods
-    # There is a wide range of behaviors that are supported, so a lot of the
-    # logic can get a bit convoluted.
-    def apply(self, func, axis, *args, **kwargs):
-        """Apply func across given axis.
-
-        Args:
-            func: The function to apply.
-            axis: Target axis to apply the function along.
-
-        Returns:
-            A new QueryCompiler.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-    # END UDF
-
-    # Manual Partitioning methods (e.g. merge, groupby)
-    # These methods require some sort of manual partitioning due to their
-    # nature. They require certain data to exist on the same partition, and
-    # after the shuffle, there should be only a local map required.
-    def groupby_agg(self, by, axis, agg_func, groupby_args, agg_args):
-        raise NotImplementedError("Must be implemented in children classes")
-    # END Manual Partitioning methods
-
-    def get_dummies(self, columns, **kwargs):
-        """Convert categorical variables to dummy variables for certain columns.
-
-        Args:
-            columns: The columns to convert.
-
-        Returns:
-            A new PandasDataManager.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    # Indexing
-    def view(self, index=None, columns=None):
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def squeeze(self, ndim=0, axis=None):
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def write_items(self, row_numeric_index, col_numeric_index, broadcasted_items):
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def global_idx_to_numeric_idx(self, axis, indices):
-        """
-        Note: this function involves making copies of the index in memory.
-
-        Args:
-            axis: Axis to extract indices.
-            indices: Indices to convert to numerical.
-
-        Returns:
-            An Index object.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def enlarge_partitions(self, new_row_labels=None, new_col_labels=None):
-        raise NotImplementedError("Must be implemented in children classes")
-
-
-class WeldQueryCompilerView(WeldQueryCompiler):
-    """
-    This class represent a view of the BaseQueryCompiler
-
-    In particular, the following constraints are broken:
-    - (len(self.index), len(self.columns)) != self.data.shape
-
-    Note:
-        The constraint will be satisfied when we get the data
-    """
-
-    def __init__(
-        self,
-        block_partitions_object: BaseBlockPartitions,
-        index,
-        column,
-        dtypes=None,
-        index_map_series=None,
-        columns_map_series=None,
-    ):
-        """
-        Args:
-            index_map_series: a Series Object mapping user-facing index to
-                numeric index.
-            columns_map_series: a Series Object mapping user-facing index to
-                numeric index.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    _dtype_cache = None
-
-    def _get_dtype(self):
-        """Override the parent on this to avoid getting the wrong dtypes."""
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def _set_dtype(self, dtypes):
-        self._dtype_cache = dtypes
-
-    dtypes = property(_get_dtype, _set_dtype)
-
-    def _get_data(self) -> BaseBlockPartitions:
-        """Perform the map step
-
-        Returns:
-            A BaseBlockPartitions object.
-        """
-        raise NotImplementedError("Must be implemented in children classes")
-
-    def _set_data(self, new_data):
-        """Note this setter will be called by the
-            `super(PandasDataManagerView).__init__` function
-        """
-        self.parent_data = new_data
-
-    data = property(_get_data, _set_data)
-
-    def global_idx_to_numeric_idx(self, axis, indices):
-        raise NotImplementedError("Must be implemented in children classes")
+        df = self.data.to_pandas(is_transposed=self._is_transposed)
+        if df.empty:
+            dtype_dict = {
+                col_name: pandas.Series(dtype=self.dtypes[col_name])
+                for col_name in self.columns
+            }
+            df = pandas.DataFrame(dtype_dict, self.index)
+        else:
+            ErrorMessage.catch_bugs_and_request_email(
+                len(df.index) != len(self.index) or len(df.columns) != len(self.columns)
+            )
+            df.index = self.index
+            df.columns = self.columns
+        return df

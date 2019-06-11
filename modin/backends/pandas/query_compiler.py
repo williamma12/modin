@@ -2093,7 +2093,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
             value = list(value)
 
         def insert(df, internal_indices=[]):
-            internal_idx = int(internal_indices[0])
+            internal_idx = 0 if len(internal_indices) == 0 else int(internal_indices[0])
             old_index = df.index
             df.index = pandas.RangeIndex(len(df.index))
             df.insert(internal_idx, internal_idx, value, allow_duplicates=True)

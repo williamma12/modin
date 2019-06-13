@@ -2601,6 +2601,24 @@ class BasePandasDataset(object):
         axis = self._get_axis_number(axis)
         if not is_list_like(by):
             by = [by]
+
+        if axis == 0:
+            broadcast_value_dict = self[by].values
+        else:
+            broadcast_value_dict = {row: self[row :: len(self.index)] for row in by}
+        new_query_compiler = self._query_compiler.sort(
+            broadcast_value_dict,
+            by=by,
+            axis=axis,
+            ascending=ascending,
+            kind=kind,
+            na_position=na_position,
+        )
+        if inplace:
+            self._update_inplace(new_query_compiler=new_query_compiler)
+        else:
+            return self.__constructor__(query_compiler=new_query_compiler)
+
         # Currently, sort_values will just reindex based on the sorted values.
         # TODO create a more efficient way to sort
         if axis == 0:

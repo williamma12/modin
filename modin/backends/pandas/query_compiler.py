@@ -1821,6 +1821,28 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
     # END Map across select rows/columns
 
+    # Sorting operations
+    def sort(self, broadcast_value_dict, **kwargs):
+        """Sorts the data with respect to the specified column.
+
+        Returns:
+            QueryCompiler containing the data sorted by the given values.
+        """
+        axis = kwargs.pop("axis", 0)
+
+        # def internal_sorting(df, _indices=[], **kwargs):
+        def internal_sorting(df, broadcast_values=[], **kwargs):
+            # ind_range = _indices[axis]
+            # print(ind_range)
+            print(broadcast_values)
+            return df
+
+        internal_func = self._prepare_method(internal_sorting)
+        new_data = self.data.map_across_blocks(internal_func, broadcast_axis=axis, broadcast_values=broadcast_value_dict)
+        return self.__constructor__(new_data, self.index, self.columns)
+
+    # END Sorting operations
+
     # Head/Tail/Front/Back
     def head(self, n):
         """Returns the first n rows.

@@ -2598,6 +2598,7 @@ class BasePandasDataset(object):
         Returns:
              A sorted DataFrame.
         """
+        inplace = validate_bool_kwarg(inplace, "inplace")
         axis = self._get_axis_number(axis)
         if not is_list_like(by):
             by = [by]

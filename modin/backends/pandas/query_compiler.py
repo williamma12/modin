@@ -1828,14 +1828,20 @@ class PandasQueryCompiler(BaseQueryCompiler):
         Returns:
             QueryCompiler containing the data sorted by the given values.
         """
+        # We do not use the by kwarg
+        kwargs.pop("by")
         axis = kwargs.pop("axis", 0)
 
-        # def internal_sorting(df, _indices=[], **kwargs):
         def internal_sorting(df, broadcast_values=[], **kwargs):
-            # ind_range = _indices[axis]
-            # print(ind_range)
-            print(broadcast_values)
-            return df
+            sort_by_df = pandas.DataFrame(broadcast_values)
+            sort_by_labels = ["__label{}".format(i) for i in range(len(sort_by_df.index if axis else sort_by_df.columns))]
+            if axis:
+                sort_by_df.index = sort_by_labels
+                df.append(sort_by_df)
+            else:
+                df[sort_by_labels] = sort_by_df
+            return df.sort_values(by=sort_by_labels, **kwargs)\
+                    .drop(sort_by_labels, axis=axis^1)
 
         internal_func = self._prepare_method(internal_sorting)
         new_data = self.data.map_across_blocks(internal_func, broadcast_axis=axis, broadcast_values=broadcast_value_dict)

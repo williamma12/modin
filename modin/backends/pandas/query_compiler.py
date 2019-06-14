@@ -1810,7 +1810,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         result = self.__constructor__(new_data, q_index, new_columns)
         return result.transpose() if axis == 1 else result
 
-    # END Map across rows/columns
+    # END Map across select rows/columns
 
     # Head/Tail/Front/Back
     def head(self, n):

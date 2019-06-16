@@ -1822,12 +1822,13 @@ class PandasQueryCompiler(BaseQueryCompiler):
     # END Map across select rows/columns
 
     # Sorting operations
-    def sort(self, broadcast_value_dict, **kwargs):
+    def sort(self, broadcast_values, **kwargs):
         """Sorts the data with respect to the specified column.
 
         Returns:
             QueryCompiler containing the data sorted by the given values.
         """
+        print(broadcast_values)
         # We do not use the by kwarg
         kwargs.pop("by")
         axis = kwargs.pop("axis", 0)
@@ -1840,12 +1841,36 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 df.append(sort_by_df)
             else:
                 df[sort_by_labels] = sort_by_df
-            print(df)
             return df.sort_values(by=sort_by_labels, **kwargs)\
                     .drop(sort_by_labels, axis=axis^1)
 
-        internal_func = self._prepare_method(internal_sorting)
-        new_data = self.data.map_across_blocks(internal_func, broadcast_axis=axis, broadcast_values=broadcast_value_dict)
+        def sorted_merge(df_pair, final_merge):
+            df1, df2 = df_pair
+            ind1, ind2 = 0, 0
+            result = np.array([])
+            sort_by_labels = [col for col in df1.columns]# if "__" in col]
+            print(df1)
+            return df1.append(df2)
+            while ind1 != len(df1) and ind2 != len(df2):
+                df1_values = df1.loc[ind1, sort_by_labels]
+                df2_values = df2.loc[ind2, sort_by_labels]
+                if df1_values.gt(df2_values):
+                    result.append(df1.loc[ind1])
+                    ind1 += 1
+                elif df2_values.gt(df1_values):
+                    result.append(df2.loc[ind2])
+                    ind2 += 1
+                else:
+                    result.append(df1.loc[ind1])
+                    result.append(df2.loc[ind2])
+                    ind1 += 1
+                    ind2 += 1
+                if ind1:
+                    result
+
+        map_func = self._prepare_method(internal_sorting, **kwargs)
+        reduce_func = self._prepare_method(sorted_merge)
+        new_data = self.data.map_merge(axis, map_func, reduce_func, broadcast_values=broadcast_values)
         return self.__constructor__(new_data, self.index, self.columns)
 
     # END Sorting operations

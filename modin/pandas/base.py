@@ -2604,11 +2604,11 @@ class BasePandasDataset(object):
             by = [by]
 
         if axis == 0:
-            broadcast_value_dict = self[by].values
+            broadcast_values = self[by].values
         else:
-            broadcast_value_dict = {row: self[row :: len(self.index)] for row in by}
+            broadcast_values = self.loc[by].values
         new_query_compiler = self._query_compiler.sort(
-            broadcast_value_dict,
+            broadcast_values,
             by=by,
             axis=axis,
             ascending=ascending,

@@ -71,6 +71,41 @@ class BaseFrameAxisPartition(object):  # pragma: no cover
         """
         raise NotImplementedError("Must be implemented in children classes")
 
+    def tree_apply(
+        self,
+        map_func,
+        merge_func,
+        num_splits=None,
+        maintain_partitioning=True,
+        map_kwargs={},
+        merge_kwargs={},
+    ):
+        """Tree merge a full axis.
+
+        See notes in the apply function about this method.
+
+        Args:
+            map_func: The map function to apply. This will be preprocessed according to
+                the corresponding `RemotePartitions` object.
+            merge_func: The map function to apply. This will be preprocessed according to
+                the corresponding `RemotePartitions` object.
+            num_splits: The number of objects to return, the number of splits
+                for the resulting object. It is up to this method to choose the
+                splitting at this time.
+            maintain_partitioning: Whether or not to keep the partitioning in the same
+                orientation as it was previously. This is important because we may be
+                operating on an individual AxisPartition and not touching the rest.
+                In this case, we have to return the partitioning to its previous
+                orientation (the lengths will remain the same). This is ignored between
+                two axis partitions.
+            map_kwargs: Kwargs for the map function.
+            merge_kwargs: Kwargs for the reduce function.
+
+        Returns:
+            A list of `BaseFramePartition` objects.
+        """
+        raise NotImplementedError("Must be implemented in children classes")
+
     # Child classes must have these in order to correctly subclass.
     instance_type = None
     partition_type = None
@@ -159,6 +194,125 @@ class PandasFrameAxisPartition(BaseFrameAxisPartition):
         args = [self.axis, func, num_splits, kwargs, False]
         args.extend(self.list_of_blocks)
         return self._wrap_partitions(self.deploy_axis_func(*args))
+
+    def tree_apply(
+        self,
+        map_func,
+        merge_func,
+        other,
+        num_splits=None,
+        maintain_partitioning=True,
+        map_kwargs={},
+        merge_kwargs={},
+        **kwargs,
+    ):
+        """Tree merge a full axis.
+
+        See notes in Parent class about this method.
+
+        Args:
+            map_func: The map function to apply. This will be preprocessed according to
+                the corresponding `RemotePartitions` object.
+            merge_func: The map function to apply. This will be preprocessed according to
+                the corresponding `RemotePartitions` object.
+            num_splits: The number of objects to return, the number of splits
+                for the resulting object. It is up to this method to choose the
+                splitting at this time.
+            maintain_partitioning: Whether or not to keep the partitioning in the same
+                orientation as it was previously. This is important because we may be
+                operating on an individual AxisPartition and not touching the rest.
+                In this case, we have to return the partitioning to its previous
+                orientation (the lengths will remain the same). This is ignored between
+                two axis partitions.
+            map_kwargs: Kwargs for the map function.
+            merge_kwargs: Kwargs for the reduce function.
+
+        Returns:
+            A list of `BaseFramePartition` objects.
+        """
+        if num_splits is None:
+            num_splits = len(self.list_of_blocks)
+
+        old_partitions = self.list_of_blocks
+        new_partitions = []
+        first_pass = True
+        while True:
+            while len(old_partitions) > 1:
+                final_merge = len(old_partitions) == 2 and len(new_partitions) == 0
+                if first_pass:
+                    other_values = [other.pop(0), other.pop(0)]
+                else:
+                    other_values = [None, None]
+                args = [self.axis, map_func if first_pass else None, merge_func, other_values[0], other_values[1], final_merge, num_splits, maintain_partitioning, map_kwargs, merge_kwargs, old_partitions.pop(0), old_partitions.pop(0), kwargs]
+                new_partitions.append(self._wrap_partitions(self.deploy_axis_merge_func(*args)))
+            if first_pass and len(old_partitions) == 1:
+                new_partitions.append(old_partitions[0].apply(map_func, other=other[0]))
+            first_pass = False
+            if len(old_partitions) == 0 and len(new_partitions) == 1:
+                break
+            else:
+                old_partitions.extend(new_partitions)
+                new_partitions = []
+        return new_partitions[0]
+
+    @classmethod
+    def deploy_axis_merge_func(
+        cls, axis, map_func, merge_func, other1, other2, final_merge, num_splits, maintain_partitioning, partition1, partition2, kwargs
+    ):
+        """Deploy a function along a full axis in Ray.
+
+            Args:
+                axis: The axis to perform the function along.
+                map_func: The map function to perform.
+                merge_func: Function to merge the partitions.
+                other: Value to broadcast to partition during mapping. May be None.
+                final_merge: True if this is the last merge, so we need to split back
+                    to correct number of partitions.
+                num_splits: The number of splits to return
+                    (see `split_result_of_axis_func_pandas`)
+                maintain_partitioning: If True, keep the old partitioning if possible.
+                    If False, create a new partition layout.
+                map_kwargs: A dictionary of keyword arguments for the map function.
+                merge_kwargs: A dictionary of keyword arguments for the merge function.
+                partition1: First partition to map and merge with partition2.
+                partition2: Second partition to map and merge with partition1.
+
+            Returns:
+                A list of Pandas DataFrames.
+        """
+        lengths = kwargs.pop("_lengths", None)
+
+        if map_func is not None:
+            if other1 is not None:
+                partitions = [map_func(partition1, other1), map_func(partition2, other2)]
+            else:
+                partitions = [map_func(partition1), map_func(partition2)]
+
+        result = merge_func(partitions, final_merge)
+
+        if final_merge:
+            if isinstance(result, pandas.Series):
+                if num_splits == 1:
+                    return result
+                return [result] + [pandas.Series([]) for _ in range(num_splits - 1)]
+
+            # We set lengths to None so we don't use the old lengths for the resulting partition
+            # layout. This is done if the number of splits is changing or we are told not to
+            # keep the old partitioning.
+            if num_splits != len(partitions) or not maintain_partitioning:
+                lengths = None
+            else:
+                if axis == 0:
+                    lengths = [len(part) for part in partitions]
+                    if sum(lengths) != len(result):
+                        lengths = None
+                else:
+                    lengths = [len(part.columns) for part in partitions]
+                    if sum(lengths) != len(result.columns):
+                        lengths = None
+            return split_result_of_axis_func_pandas(axis, num_splits, result, lengths)
+        else:
+            return result
 
     @classmethod
     def deploy_axis_func(

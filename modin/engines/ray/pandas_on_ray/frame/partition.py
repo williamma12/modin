@@ -138,17 +138,17 @@ def deploy_ray_func(call_queue, partition, func, other, kwargs):  # pragma: no c
             return ray.get(obj)
         return obj
 
-    if len(call_queue) > 1:
-        for queued_func, queued_other, queued_kwargs in call_queue[:-1]:
+    if len(call_queue) > 0:
+        for queued_func, queued_other, queued_kwargs in call_queue:
             queued_func = deserialize(queued_func)
             queued_other = deserialize(other)
             queued_kwargs = deserialize(queued_kwargs)
             if queued_other is not None:
                 queued_kwargs["other"] = other
             try:
-                result = queued_func(partition, **queued_kwargs)
+                partition = queued_func(partition, **queued_kwargs)
             except ValueError:
-                result = queued_func(partition, **queued_kwargs)
+                partition = queued_func(partition, **queued_kwargs)
     if func is not None:
         if other is not None:
             kwargs["other"] = other
@@ -159,8 +159,10 @@ def deploy_ray_func(call_queue, partition, func, other, kwargs):  # pragma: no c
         # we absolutely have to.
         except ValueError:
             result = func(partition, **kwargs)
+    else:
+        result = partition
     return (
-        partition if len(call_queue) > 1 else None,
+        partition if len(call_queue) > 0 else None,
         result,
         len(result) if hasattr(result, "__len__") else 0,
         len(result.columns) if hasattr(result, "columns") else 0,

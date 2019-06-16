@@ -1840,6 +1840,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 df.append(sort_by_df)
             else:
                 df[sort_by_labels] = sort_by_df
+            print(df)
             return df.sort_values(by=sort_by_labels, **kwargs)\
                     .drop(sort_by_labels, axis=axis^1)
 

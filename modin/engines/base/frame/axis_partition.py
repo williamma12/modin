@@ -1,5 +1,5 @@
 import pandas
-from modin.data_management.utils import split_result_of_axis_func_pandas
+from modin.data_management.utils import split_result_of_axis_func_pandas, split_result_by_value_pandas
 
 
 class BaseFrameAxisPartition(object):  # pragma: no cover
@@ -201,7 +201,7 @@ class PandasFrameAxisPartition(BaseFrameAxisPartition):
         merge_func,
         other,
         num_splits=None,
-        maintain_partitioning=True,
+        split_values=None,
         map_kwargs={},
         merge_kwargs={},
         **kwargs,
@@ -230,12 +230,14 @@ class PandasFrameAxisPartition(BaseFrameAxisPartition):
         Returns:
             A list of `BaseFramePartition` objects.
         """
-        if num_splits is None:
-            num_splits = len(self.list_of_blocks)
+        kwargs["_split_values"] = split_values
+        if split_values is not None:
+            num_splits = 1 + len(split_values)
 
         old_partitions = self.list_of_blocks
         new_partitions = []
         first_pass = True
+        split_values = []
         while True:
             while len(old_partitions) > 1:
                 final_merge = len(old_partitions) == 2 and len(new_partitions) == 0
@@ -243,8 +245,13 @@ class PandasFrameAxisPartition(BaseFrameAxisPartition):
                     other_values = [other.pop(0), other.pop(0)]
                 else:
                     other_values = [None, None]
-                args = [self.axis, map_func if first_pass else None, merge_func, other_values[0], other_values[1], final_merge, num_splits, maintain_partitioning, map_kwargs, merge_kwargs, old_partitions.pop(0), old_partitions.pop(0), kwargs]
-                new_partitions.append(self.deploy_axis_merge_func(*args))
+                args = [self.axis, map_func if first_pass else None, merge_func, other_values[0], other_values[1], final_merge, num_splits, map_kwargs, merge_kwargs, old_partitions.pop(0), old_partitions.pop(0), kwargs]
+                if final_merge:
+                    temp = self.deploy_axis_merge_func(*args)
+                    split_values = temp[0]
+                    new_partitions.append(temp[1:])
+                else:
+                    new_partitions.append(self.deploy_axis_merge_func(*args))
             # if first_pass and len(old_partitions) == 1:
             #     new_partitions.append(self._wrap_partitions(self.partition_type(old_partitions[0]).apply(map_func, other=other[0])))
             #     old_partitions = []
@@ -254,11 +261,11 @@ class PandasFrameAxisPartition(BaseFrameAxisPartition):
             else:
                 old_partitions.extend(new_partitions)
                 new_partitions = []
-        return self._wrap_partitions(new_partitions[0])
+        return (split_values, self._wrap_partitions(new_partitions[0]))
 
     @classmethod
     def deploy_axis_merge_func(
-        cls, axis, map_func, merge_func, other1, other2, final_merge, num_splits, maintain_partitioning, partition1, partition2, kwargs
+        cls, axis, map_func, merge_func, other1, other2, final_merge, num_splits, partition1, partition2, kwargs
     ):
         """Deploy a function along a full axis in Ray.
 
@@ -271,8 +278,6 @@ class PandasFrameAxisPartition(BaseFrameAxisPartition):
                     to correct number of partitions.
                 num_splits: The number of splits to return
                     (see `split_result_of_axis_func_pandas`)
-                maintain_partitioning: If True, keep the old partitioning if possible.
-                    If False, create a new partition layout.
                 map_kwargs: A dictionary of keyword arguments for the map function.
                 merge_kwargs: A dictionary of keyword arguments for the merge function.
                 partition1: First partition to map and merge with partition2.
@@ -282,6 +287,7 @@ class PandasFrameAxisPartition(BaseFrameAxisPartition):
                 A list of Pandas DataFrames.
         """
         lengths = kwargs.pop("_lengths", None)
+        split_values = kwargs.pop("_split_values", None)
 
         if map_func is not None:
             if other1 is not None:
@@ -299,21 +305,10 @@ class PandasFrameAxisPartition(BaseFrameAxisPartition):
                     return result
                 return [result] + [pandas.Series([]) for _ in range(num_splits - 1)]
 
-            # We set lengths to None so we don't use the old lengths for the resulting partition
-            # layout. This is done if the number of splits is changing or we are told not to
-            # keep the old partitioning.
-            if num_splits != len(partitions) or not maintain_partitioning:
-                lengths = None
+            if split_values is None:
+                return split_result_by_value_pandas(axis, num_splits, result)
             else:
-                if axis == 0:
-                    lengths = [len(part) for part in partitions]
-                    if sum(lengths) != len(result):
-                        lengths = None
-                else:
-                    lengths = [len(part.columns) for part in partitions]
-                    if sum(lengths) != len(result.columns):
-                        lengths = None
-            return split_result_of_axis_func_pandas(axis, num_splits, result, lengths)
+                return split_result_by_value_pandas(axis, split_values, result)
         else:
             return result
 

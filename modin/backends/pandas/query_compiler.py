@@ -1816,7 +1816,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
     # END Map across select rows/columns
 
     # Sorting operations
-    def sort(self, broadcast_values, **kwargs):
+    def sort(self, broadcast_values, split_values=None, return_split_values=False, **kwargs):
         """Sorts the data with respect to the specified column.
 
         Returns:
@@ -1875,18 +1875,21 @@ class PandasQueryCompiler(BaseQueryCompiler):
             if left_overs is not None:
                 result = result.append(left_overs)
             if final_merge:
-                result = result.drop(sort_by_labels+['index'], axis=axis^1)
+                result = result.drop('index', axis=axis^1)
                 return result
             else:
                 return result
 
         map_func = self._prepare_method(internal_sorting, **kwargs)
         reduce_func = self._prepare_method(sorted_merge)
-        new_data = self.data.map_merge(axis, map_func, reduce_func, broadcast_values=broadcast_values)
+        new_split_values, new_data = self.data.map_merge(axis, map_func, reduce_func, broadcast_values=broadcast_values, split_values=split_values)
         # Calculate index
         index_df = pandas.DataFrame(broadcast_values, index=self.index)
         new_index = index_df.sort_values(index_df.columns.tolist(), **kwargs).index
-        return self.__constructor__(new_data, new_index, self.columns)
+        if return_split_values:
+            return new_split_values, self.__constructor__(new_data, new_index, self.columns)
+        else:
+            return self.__constructor__(new_data, new_index, self.columns)
 
     # END Sorting operations
 

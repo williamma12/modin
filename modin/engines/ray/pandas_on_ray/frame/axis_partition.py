@@ -54,7 +54,7 @@ class PandasOnRayFrameAxisPartition(PandasFrameAxisPartition):
 
     @classmethod
     def deploy_axis_merge_func(
-        cls, axis, map_func, merge_func, other1, other2, final_merge, num_splits, maintain_partitioning, map_kwargs, merge_kwargs, partition1, partition2, kwargs,
+        cls, axis, map_func, merge_func, other1, other2, final_merge, num_splits, map_kwargs, merge_kwargs, partition1, partition2, kwargs,
     ):
         return deploy_ray_func._remote(
             args=(
@@ -66,12 +66,11 @@ class PandasOnRayFrameAxisPartition(PandasFrameAxisPartition):
                 other2,
                 final_merge,
                 num_splits,
-                maintain_partitioning,
                 partition1,
                 partition2,
                 kwargs,
             ),
-            num_return_vals=num_splits if final_merge else 1,
+            num_return_vals=num_splits+1 if final_merge else 1,
         )
 
 

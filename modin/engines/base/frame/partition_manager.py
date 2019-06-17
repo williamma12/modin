@@ -336,7 +336,7 @@ class BaseFrameManager(object):
             else self.__constructor__(result_blocks)
         )
 
-    def map_merge(self, axis, map_func, reduce_func, broadcast_values=None):
+    def map_merge(self, axis, map_func, reduce_func, broadcast_values=None, split_values=None):
         """Map across blocks and merge along axis.
 
         Args:
@@ -368,20 +368,22 @@ class BaseFrameManager(object):
         # may want to line to partitioning up with another BlockPartitions object. Since
         # we don't need to maintain the partitioning, this gives us the opportunity to
         # load-balance the data as well.
-        result_blocks = np.array(
-            [
-                part.tree_apply(preprocessed_map_func, preprocessed_reduce_func, broadcast_values.copy(), num_splits=num_splits)
-                for part in partitions
-            ]
-        )
+        result_blocks = []
+        split_values = split_values
+        new_split_values = []
+        for part in partitions:
+            new_split_values, result = part.tree_apply(preprocessed_map_func, preprocessed_reduce_func, broadcast_values.copy(), num_splits=num_splits, split_values=split_values)
+            result_blocks.append(result)
+        result_blocks = np.array(result_blocks)
         # If we are mapping over columns, they are returned to use the same as
         # rows, so we need to transpose the returned 2D numpy array to return
         # the structure to the correct order.
-        return (
-            self.__constructor__(result_blocks.T)
+        result = (
+            (new_split_values, self.__constructor__(result_blocks.T))
             if not axis
-            else self.__constructor__(result_blocks)
+            else (new_split_values, self.__constructor__(result_blocks))
         )
+        return result
 
     def take(self, axis, n):
         """Take the first (or last) n rows or columns from the blocks

@@ -111,6 +111,36 @@ def split_result_of_axis_func_pandas(axis, num_splits, result, length_list=None)
         ]
 
 
+def split_result_by_value_pandas(axis, num_splits_or_values, result_df):
+    """Split the Pandas result_df evenly based on the provided number of splits.
+
+    Args:
+        axis: The axis to split across.
+        num_splits_or_values: The number of even splits to create or list of numpy arrays
+            containing the values to split on.
+        result_df: The result_df of the computation. This should be a Pandas
+            DataFrame.
+
+    Returns:
+        A list of Pandas DataFrames.
+    """
+    if num_splits_or_values == 1:
+        return result_df
+    sort_by_label = [col for col in result_df.columns if isinstance(col, str) and "__" in col][0]
+    if isinstance(num_splits_or_values, int):
+        num_splits_or_indices = num_splits_or_values
+    else:
+        # Get searchsorted indices
+        num_splits_or_indices = []
+        sort_by_values = result_df[sort_by_label]
+        [num_splits_or_indices.append(sort_by_values.searchsorted(value)) for value in num_splits_or_values]
+    result_df = np.array_split(result_df, num_splits_or_indices)
+    result = [[df[sort_by_label].iloc[0] for df in result_df[1:]]]
+    result_df = [df.drop(sort_by_label, axis=axis^1) for df in result_df]
+    result.extend(result_df)
+    return result
+
+
 def length_fn_pandas(df):
     assert isinstance(df, pandas.DataFrame)
     return len(df)

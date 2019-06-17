@@ -2607,6 +2607,8 @@ class BasePandasDataset(object):
             broadcast_values = self[by].values
         else:
             broadcast_values = self.loc[by].values
+            if len(by) == 1:
+                broadcast_values = np.vstack([broadcast_values, np.zeros(len(broadcast_values))])
         new_query_compiler = self._query_compiler.sort(
             broadcast_values,
             by=by,

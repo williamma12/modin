@@ -370,7 +370,7 @@ class BaseFrameManager(object):
         # load-balance the data as well.
         result_blocks = np.array(
             [
-                part.tree_apply(preprocessed_map_func, preprocessed_reduce_func, broadcast_values, num_splits=num_splits)
+                part.tree_apply(preprocessed_map_func, preprocessed_reduce_func, broadcast_values.copy(), num_splits=num_splits)
                 for part in partitions
             ]
         )

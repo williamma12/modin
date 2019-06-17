@@ -480,7 +480,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         Returns:
             Pandas DataFrame of the QueryCompiler.
         """
-        df = self.data.to_pandas()
+        df = self.data.to_pandas(self._is_transposed)
         if df.empty:
             if len(self.columns) != 0:
                 df = pandas.DataFrame(columns=self.columns).astype(self.dtypes)
@@ -1054,13 +1054,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         )
 
     def abs(self):
-        # func = self._prepare_method(pandas.DataFrame.abs)
-        # return self._map_partitions(func, new_dtypes=self.dtypes.copy())
-        def abs_builder(df, other):
-            print(df)
-            print(other)
-            return df.abs()
-        func = self._prepare_method(abs_builder)
+        func = self._prepare_method(pandas.DataFrame.abs)
         return self._map_partitions(func, new_dtypes=self.dtypes.copy())
 
     def applymap(self, func):
@@ -1828,10 +1822,10 @@ class PandasQueryCompiler(BaseQueryCompiler):
         Returns:
             QueryCompiler containing the data sorted by the given values.
         """
-        print(broadcast_values)
         # We do not use the by kwarg
         kwargs.pop("by")
         axis = kwargs.pop("axis", 0)
+        ascending = kwargs.get("ascending", True)
 
         def internal_sorting(df, broadcast_values=[], **kwargs):
             sort_by_df = pandas.DataFrame(broadcast_values)
@@ -1841,37 +1835,58 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 df.append(sort_by_df)
             else:
                 df[sort_by_labels] = sort_by_df
-            return df.sort_values(by=sort_by_labels, **kwargs)\
-                    .drop(sort_by_labels, axis=axis^1)
+            return df.sort_values(by=sort_by_labels, **kwargs)
 
         def sorted_merge(df_pair, final_merge):
             df1, df2 = df_pair
+            df1 = df1.reset_index()
+            df2 = df2.reset_index()
             ind1, ind2 = 0, 0
-            result = np.array([])
-            sort_by_labels = [col for col in df1.columns]# if "__" in col]
-            print(df1)
-            return df1.append(df2)
+            result = []
+            sort_by_labels = [col for col in df1.columns if isinstance(col, str) and "__" in col]
+            left_overs = None
             while ind1 != len(df1) and ind2 != len(df2):
                 df1_values = df1.loc[ind1, sort_by_labels]
                 df2_values = df2.loc[ind2, sort_by_labels]
-                if df1_values.gt(df2_values):
-                    result.append(df1.loc[ind1])
-                    ind1 += 1
-                elif df2_values.gt(df1_values):
-                    result.append(df2.loc[ind2])
-                    ind2 += 1
-                else:
-                    result.append(df1.loc[ind1])
-                    result.append(df2.loc[ind2])
-                    ind1 += 1
-                    ind2 += 1
-                if ind1:
-                    result
+                df1_comp = df1_values.lt(df2_values) if ascending else df1_values.gt(df2_values)
+                df2_comp = df2_values.lt(df1_values) if ascending else df2_values.gt(df1_values)
+                for i in range(len(sort_by_labels)):
+                    if df1_comp[i]:
+                        result.append(df1.loc[ind1].values)
+                        ind1 += 1
+                        break
+                    elif df2_comp[i]:
+                        result.append(df2.loc[ind2].values)
+                        ind2 += 1
+                        break
+                    else:
+                        if i != len(sort_by_labels) - 1:
+                            continue
+                        else:
+                            result.append(df1.loc[ind1].values)
+                            result.append(df2.loc[ind2].values)
+                            ind1 += 1
+                            ind2 += 1
+                if ind1 == len(df1):
+                    left_overs = df2.loc[ind2:,:]
+                elif ind2 == len(df2):
+                    left_overs = df1.loc[ind1:,:]
+            result = pandas.DataFrame(result, columns=df1.columns)
+            if left_overs is not None:
+                result = result.append(left_overs)
+            if final_merge:
+                result = result.drop(sort_by_labels+['index'], axis=axis^1)
+                return result
+            else:
+                return result
 
         map_func = self._prepare_method(internal_sorting, **kwargs)
         reduce_func = self._prepare_method(sorted_merge)
         new_data = self.data.map_merge(axis, map_func, reduce_func, broadcast_values=broadcast_values)
-        return self.__constructor__(new_data, self.index, self.columns)
+        # Calculate index
+        index_df = pandas.DataFrame(broadcast_values, index=self.index)
+        new_index = index_df.sort_values(index_df.columns.tolist(), **kwargs).index
+        return self.__constructor__(new_data, new_index, self.columns)
 
     # END Sorting operations
 

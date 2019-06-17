@@ -107,7 +107,12 @@ class RayFrameManager(BaseFrameManager):
         broadcast_values = []
         for block_idx in range(len(axis_lengths)):
             cumulative_axis = np.insert(np.cumsum(axis_lengths), 0, 0)
-            broadcast_values.append(ray.put(values[
-                cumulative_axis[block_idx] : cumulative_axis[block_idx] + axis_lengths[block_idx], :
-            ]))
+            if axis:
+                broadcast_values.append(ray.put(values[
+                    :, cumulative_axis[block_idx] : cumulative_axis[block_idx] + axis_lengths[block_idx]
+                ]))
+            else:
+                broadcast_values.append(ray.put(values[
+                    cumulative_axis[block_idx] : cumulative_axis[block_idx] + axis_lengths[block_idx], :
+                ]))
         return broadcast_values

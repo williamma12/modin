@@ -4251,6 +4251,7 @@ class TestDFPartTwo:
     )
     @pytest.mark.parametrize("na_position", ["first", "last"], ids=["first", "last"])
     def test_sort_values(self, request, data, axis, ascending, na_position):
+        axis=0
         modin_df = pd.DataFrame(data)
         pandas_df = pandas.DataFrame(data)
 

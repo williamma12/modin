@@ -244,16 +244,17 @@ class PandasFrameAxisPartition(BaseFrameAxisPartition):
                 else:
                     other_values = [None, None]
                 args = [self.axis, map_func if first_pass else None, merge_func, other_values[0], other_values[1], final_merge, num_splits, maintain_partitioning, map_kwargs, merge_kwargs, old_partitions.pop(0), old_partitions.pop(0), kwargs]
-                new_partitions.append(self._wrap_partitions(self.deploy_axis_merge_func(*args)))
-            if first_pass and len(old_partitions) == 1:
-                new_partitions.append(old_partitions[0].apply(map_func, other=other[0]))
+                new_partitions.append(self.deploy_axis_merge_func(*args))
+            # if first_pass and len(old_partitions) == 1:
+            #     new_partitions.append(self._wrap_partitions(self.partition_type(old_partitions[0]).apply(map_func, other=other[0])))
+            #     old_partitions = []
             first_pass = False
             if len(old_partitions) == 0 and len(new_partitions) == 1:
                 break
             else:
                 old_partitions.extend(new_partitions)
                 new_partitions = []
-        return new_partitions[0]
+        return self._wrap_partitions(new_partitions[0])
 
     @classmethod
     def deploy_axis_merge_func(
@@ -287,6 +288,8 @@ class PandasFrameAxisPartition(BaseFrameAxisPartition):
                 partitions = [map_func(partition1, other1), map_func(partition2, other2)]
             else:
                 partitions = [map_func(partition1), map_func(partition2)]
+        else:
+            partitions = [partition1, partition2]
 
         result = merge_func(partitions, final_merge)
 

@@ -105,7 +105,7 @@ class RayFrameManager(BaseFrameManager):
                 )
         return self._widths_cache
 
-    def manual_shuffle(self, axis, shuffle_func, lengths):
+    def manual_shuffle(self, axis, shuffle_func, lengths, transposed=False):
         """Shuffle the partitions based on the `shuffle_func`.
 
         Args:
@@ -119,13 +119,12 @@ class RayFrameManager(BaseFrameManager):
 
         @ray.remote
         class ShuffleActors(object):
-            def shuffle(self, axis, func, internal_indices, indices, *partitions):
+            def shuffle(self, axis, func, internal_indices, transposed, indices, *partitions):
                 if len(indices) == 0:
                     return pandas.DataFrame()
-                transpose = False
                 df_parts = []
                 for i, part_indices in enumerate(indices):
-                    partition = partitions[i].T if transpose else partitions[i]
+                    partition = partitions[i].T if transposed else partitions[i]
                     start, end = part_indices
                     df_parts.append(partition.iloc[:, start:end] if axis else partition.iloc[start:end])
                 df = pandas.concat(df_parts, axis=axis)
@@ -133,7 +132,7 @@ class RayFrameManager(BaseFrameManager):
                 return result
 
         partition_shuffle = compute_partition_shuffle(self.block_widths if axis else self.block_lengths, lengths)
-        other_cumsum = np.insert(0, 0, np.cumsum(lengths))
+        internal_indices = np.insert(np.cumsum(lengths), 0, 0)
 
         result = []
         partitions = self.partitions if axis else self.partitions.T
@@ -158,7 +157,8 @@ class RayFrameManager(BaseFrameManager):
                 part_data = actor.shuffle.remote(
                     axis,
                     shuffle_func,
-                    other_cumsum[col_idx : col_idx + 2],
+                    internal_indices[col_idx : col_idx + 2],
+                    transposed,
                     indices,
                     *partition_args
                 )

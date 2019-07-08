@@ -448,14 +448,19 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 A function that will be run in each partition.
             """
 
-            def reindex_partition(df):
+            def reindex_partition(df, internal_indices=[]):
+                if len(internal_indices) == 0:
+                    internal_indices = [0, len(df.columns if axis else df.index)]
+                start, end = internal_indices
+                partitioned_old_idx = old_idx[start:end]
+                partitioned_joined_index = joined_index[start:end]
                 if axis == 0:
-                    df.index = old_idx
-                    new_df = df.reindex(index=joined_index)
+                    df.index = partitioned_old_idx
+                    new_df = df.reindex(index=partitioned_joined_index)
                     new_df.index = pandas.RangeIndex(len(new_df.index))
                 else:
-                    df.columns = old_idx
-                    new_df = df.reindex(columns=joined_index)
+                    df.columns = partitioned_old_idx
+                    new_df = df.reindex(columns=partitioned_joined_index)
                     new_df.columns = pandas.RangeIndex(len(new_df.columns))
                 return new_df
 

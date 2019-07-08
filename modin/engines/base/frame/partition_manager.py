@@ -1151,6 +1151,7 @@ class BaseFrameManager(object):
             axis: The axis to shuffle across.
             shuffle_func: The function to apply before splitting the result.
             lengths: The length of each partition to split the result into.
+            transposed: True if the internal partitions need to be transposed.
 
         Returns:
              A new BaseFrameManager object, the type of object that called this.

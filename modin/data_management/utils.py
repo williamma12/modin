@@ -126,6 +126,7 @@ def set_indices_for_pandas_concat(df, transposed=False):
     df.columns = pandas.RangeIndex(len(df.columns))
     return df.T if transposed else df
 
+
 def compute_partition_shuffle(old_lengths, new_lengths):
     """Calculates split old_length partitions into new_lengths partitions.
 
@@ -134,9 +135,9 @@ def compute_partition_shuffle(old_lengths, new_lengths):
         new_lengths: Lengths of the new partitions.
 
     Returns:
-        List containing a list for each of the new partitions. Each of the inner 
-        lists contain tuples contains the index of the original partition and a 
-        tuple of the indices of that partition that are in the new partition. 
+        List containing a list for each of the new partitions. Each of the inner
+        lists contain tuples contains the index of the original partition and a
+        tuple of the indices of that partition that are in the new partition.
     """
     result = []
     old_index = 0

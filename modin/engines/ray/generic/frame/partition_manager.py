@@ -119,19 +119,27 @@ class RayFrameManager(BaseFrameManager):
 
         @ray.remote
         class ShuffleActors(object):
-            def shuffle(self, axis, func, internal_indices, transposed, indices, *partitions):
+            def shuffle(
+                self, axis, func, internal_indices, transposed, indices, *partitions
+            ):
                 if len(indices) == 0:
                     return pandas.DataFrame()
                 df_parts = []
                 for i, part_indices in enumerate(indices):
                     partition = partitions[i].T if transposed else partitions[i]
                     start, end = part_indices
-                    df_parts.append(partition.iloc[:, start:end] if axis else partition.iloc[start:end])
+                    df_parts.append(
+                        partition.iloc[:, start:end]
+                        if axis
+                        else partition.iloc[start:end]
+                    )
                 df = pandas.concat(df_parts, axis=axis)
                 result = func(df, internal_indices)
                 return result
 
-        partition_shuffle = compute_partition_shuffle(self.block_widths if axis else self.block_lengths, lengths)
+        partition_shuffle = compute_partition_shuffle(
+            self.block_widths if axis else self.block_lengths, lengths
+        )
         internal_indices = np.insert(np.cumsum(lengths), 0, 0)
 
         result = []
@@ -151,7 +159,7 @@ class RayFrameManager(BaseFrameManager):
                         else partitions[part_idx][row_idx].oid
                     )
                     indices.append(index)
-                actor = actors[col_idx + row_idx*len(lengths)]
+                actor = actors[col_idx + row_idx * len(lengths)]
 
                 # Create shuffled data and create partition
                 part_data = actor.shuffle.remote(
@@ -162,14 +170,14 @@ class RayFrameManager(BaseFrameManager):
                     indices,
                     *partition_args
                 )
-                part_width = (
-                    lengths[col_idx] if axis else self.block_widths[row_idx]
-                )
-                part_length = (
-                    self.block_lengths[row_idx] if axis else lengths[col_idx]
-                )
+                part_width = lengths[col_idx] if axis else self.block_widths[row_idx]
+                part_length = self.block_lengths[row_idx] if axis else lengths[col_idx]
                 axis_parts.append(
                     self._partition_class(part_data, part_length, part_width)
                 )
             result.append(axis_parts)
-        return self.__constructor__(np.array(result)) if axis else self.__constructor__(np.array(result).T)
+        return (
+            self.__constructor__(np.array(result))
+            if axis
+            else self.__constructor__(np.array(result).T)
+        )

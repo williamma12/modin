@@ -1,9 +1,12 @@
 import ray
 import numpy as np
+import pandas
 from ray.worker import RayTaskError
 
 from modin.engines.base.frame.partition_manager import BaseFrameManager
 from modin.engines.ray.utils import handle_ray_task_error
+from modin.data_management.utils import compute_partition_shuffle
+from pandas.api.types import is_integer
 
 
 class RayFrameManager(BaseFrameManager):
@@ -28,7 +31,7 @@ class RayFrameManager(BaseFrameManager):
             having to recompute these values each time they are needed.
         """
         if self._lengths_cache is None:
-            if not isinstance(self._partitions_cache[0][0].length(), int):
+            if not is_integer(self._partitions_cache[0][0].length()):
                 try:
                     # The first column will have the correct lengths. We have an
                     # invariant that requires that all blocks be the same length in a
@@ -46,7 +49,7 @@ class RayFrameManager(BaseFrameManager):
                     self._lengths_cache = np.array(
                         [
                             obj.length()
-                            if isinstance(obj.length(), int)
+                            if is_integer(obj.length())
                             else ray.get(obj.length().oid)
                             for obj in self._partitions_cache.T[0]
                         ]
@@ -55,7 +58,7 @@ class RayFrameManager(BaseFrameManager):
                 self._lengths_cache = np.array(
                     [
                         obj.length()
-                        if isinstance(obj.length(), int)
+                        if is_integer(obj.length())
                         else ray.get(obj.length().oid)
                         for obj in self._partitions_cache.T[0]
                     ]
@@ -70,7 +73,7 @@ class RayFrameManager(BaseFrameManager):
             having to recompute these values each time they are needed.
         """
         if self._widths_cache is None:
-            if not isinstance(self._partitions_cache[0][0].width(), int):
+            if not is_integer(self._partitions_cache[0][0].width()):
                 try:
                     # The first column will have the correct lengths. We have an
                     # invariant that requires that all blocks be the same width in a
@@ -86,7 +89,7 @@ class RayFrameManager(BaseFrameManager):
                     self._widths_cache = np.array(
                         [
                             obj.width()
-                            if isinstance(obj.width(), int)
+                            if is_integer(obj.width())
                             else ray.get(obj.width().oid)
                             for obj in self._partitions_cache[0]
                         ]
@@ -95,7 +98,7 @@ class RayFrameManager(BaseFrameManager):
                 self._widths_cache = np.array(
                     [
                         obj.width()
-                        if isinstance(obj.width(), int)
+                        if is_integer(obj.width())
                         else ray.get(obj.width().oid)
                         for obj in self._partitions_cache[0]
                     ]
@@ -113,59 +116,60 @@ class RayFrameManager(BaseFrameManager):
         Returns:
              A new BaseFrameManager object, the type of object that called this.
         """
-        self_lengths = self.block_widths if axis else self.block_lengths
+
+        @ray.remote
+        class ShuffleActors(object):
+            def shuffle(self, axis, func, internal_indices, indices, *partitions):
+                if len(indices) == 0:
+                    return pandas.DataFrame()
+                transpose = False
+                df_parts = []
+                for i, part_indices in enumerate(indices):
+                    partition = partitions[i].T if transpose else partitions[i]
+                    start, end = part_indices
+                    df_parts.append(partition.iloc[:, start:end] if axis else partition.iloc[start:end])
+                df = pandas.concat(df_parts, axis=axis)
+                result = func(df, internal_indices)
+                return result
+
+        partition_shuffle = compute_partition_shuffle(self.block_widths if axis else self.block_lengths, lengths)
         other_cumsum = np.insert(0, 0, np.cumsum(lengths))
-        
-        # Calculate sharding of each block
-        shard_data = []
-        shard_partitions = []
-        ind = 0
-        self_ind = 0
-        self_blk_ind = 0
-        remainder = 0
 
-        for other_len in lengths:
-            temp_ind = 0
-            split_lengths = []
-            split_partitions = []
-            while temp_ind < other_len:
-                split_partitions.append(self_blk_ind)
-                prev_ind = temp_ind
-                self_blk_len = self_lengths[self_blk_ind]
-                if remainder > 0:
-                    temp_ind += remainder
-                    remainder = 0
-                else:
-                    temp_ind += self_lengths[self_blk_ind]
-                    self_blk_ind += 1
-                if temp_ind > other_len:
-                    remainder = temp_ind - other_len
-                    temp_ind = other_len
-                    self_ind -= 1
-                new_blk_ind = prev_ind + (temp_ind - prev_ind)
-                split_lengths.append((prev_ind, new_blk_ind))
-                self_ind = new_blk_ind % self_blk_len
-            shard_data.append(split_lengths)
-            shard_partitions.append(split_partitions)
-
-        # Generate new partitions
         result = []
         partitions = self.partitions if axis else self.partitions.T
-        avail_actors = get_available_actors(99999)
-        for repeat_idx in range(len(partitions)):
+        # We create one actor for each partition in the result
+        actors = [ShuffleActors.remote() for _ in range(len(lengths) * len(partitions))]
+        for row_idx in range(len(partitions)):
             axis_parts = []
-            for shard_idx in range(len(shard_partitions)):
+            for col_idx in range(len(lengths)):
+                # Compile the arguments needed for shuffling
                 partition_args = []
-                for part_idx in shard_partitions[shard_idx]:
-                    partition_args.append(partitions[repeat_idx][part_idx] if axis else partitions[part_idx][repeat_idx])
-                if axis != actor_axis:
-                    # Round robin
-                    actor = avail_actors[repeat_idx % len(avail_actors)]
-                else:
-                    actor = actors[0][shard_idx] if axis else actors[shard_idx][0]
-                part_data = actor.shuffle.remote(axis, shuffle_func, other_cumsum[shard_idx:shard_idx+2], shard_data[shard_idx], *partition_args)
-                part_width = lengths[shard_idx] if axis else self.block_widths[repeat_idx]
-                part_length = self.block_lengths[repeat_idx] if axis else lengths[shard_idx]
-                axis_parts.append(self._partition_class(part_data, part_length, part_width))
+                indices = []
+                for part_idx, index in partition_shuffle[col_idx]:
+                    partition_args.append(
+                        partitions[row_idx][part_idx].oid
+                        if axis
+                        else partitions[part_idx][row_idx].oid
+                    )
+                    indices.append(index)
+                actor = actors[col_idx + row_idx*len(lengths)]
+
+                # Create shuffled data and create partition
+                part_data = actor.shuffle.remote(
+                    axis,
+                    shuffle_func,
+                    other_cumsum[col_idx : col_idx + 2],
+                    indices,
+                    *partition_args
+                )
+                part_width = (
+                    lengths[col_idx] if axis else self.block_widths[row_idx]
+                )
+                part_length = (
+                    self.block_lengths[row_idx] if axis else lengths[col_idx]
+                )
+                axis_parts.append(
+                    self._partition_class(part_data, part_length, part_width)
+                )
             result.append(axis_parts)
-        return self.__constructor__(result) if axis else self.__constructor__(result.T)
+        return self.__constructor__(np.array(result)) if axis else self.__constructor__(np.array(result).T)

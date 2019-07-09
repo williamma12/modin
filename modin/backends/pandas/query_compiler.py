@@ -438,49 +438,63 @@ class PandasQueryCompiler(BaseQueryCompiler):
         reindexed_self = self.data
         reindexed_other_list = []
 
-        def compute_reindex(old_idx):
-            """Create a function based on the old index and axis.
+        # Insert the columns that we need to for self
+        # TODO: DO ABOVE COMMENT
 
-            Args:
-                old_idx: The old index/columns
+        # def compute_reindex(old_idx):
+        #     """Create a function based on the old index and axis.
 
-            Returns:
-                A function that will be run in each partition.
-            """
+        #     Args:
+        #         old_idx: The old index/columns
 
-            def reindex_partition(df, internal_indices=[]):
-                if len(internal_indices) == 0:
-                    internal_indices = [0, len(df.columns if axis else df.index)]
-                start, end = internal_indices
-                partitioned_old_idx = old_idx[start:end]
-                partitioned_joined_index = joined_index[start:end]
-                if axis == 0:
-                    df.index = partitioned_old_idx
-                    new_df = df.reindex(index=partitioned_joined_index)
-                    new_df.index = pandas.RangeIndex(len(new_df.index))
-                else:
-                    df.columns = partitioned_old_idx
-                    new_df = df.reindex(columns=partitioned_joined_index)
-                    new_df.columns = pandas.RangeIndex(len(new_df.columns))
-                return new_df
+        #     Returns:
+        #         A function that will be run in each partition.
+        #     """
 
-            return reindex_partition
+        #     def reindex_partition(df, internal_indices=[]):
+        #         if len(internal_indices) == 0:
+        #             internal_indices = [0, len(df.columns if axis else df.index)]
+        #         start, end = internal_indices
+        #         partitioned_old_idx = old_idx[start:end]
+        #         partitioned_joined_index = joined_index[start:end]
+        #         if axis == 0:
+        #             df.index = partitioned_old_idx
+        #             new_df = df.reindex(index=partitioned_joined_index)
+        #             new_df.index = pandas.RangeIndex(len(new_df.index))
+        #         else:
+        #             df.columns = partitioned_old_idx
+        #             new_df = df.reindex(columns=partitioned_joined_index)
+        #             new_df.columns = pandas.RangeIndex(len(new_df.columns))
+        #         return new_df
+
+        #     return reindex_partition
 
         for i in range(len(other)):
             # If the indices are equal we can skip partitioning so long as we are not
             # forced to repartition. See note above about `force_repartition`.
-            if i != 0 or (left_old_idx.equals(joined_index) and not force_repartition):
-                reindex_left = None
-            else:
-                reindex_left = self._prepare_method(compute_reindex(left_old_idx))
+            # if i != 0 or (left_old_idx.equals(joined_index) and not force_repartition):
+            #     reindex_left = None
+            # else:
+            #     reindex_left = self._prepare_method(compute_reindex(left_old_idx))
+            # if right_old_idxes[i].equals(joined_index) and not force_repartition:
+            #     reindex_right = None
+            # else:
+            #     reindex_right = compute_reindex(right_old_idxes[i])
+            # reindexed_self, reindexed_other = reindexed_self.copartition_datasets(
+            #     axis,
+            #     other[i].data,
+            #     reindex_left,
+            #     reindex_right,
+            #     other[i]._is_transposed,
+            # )
             if right_old_idxes[i].equals(joined_index) and not force_repartition:
                 reindex_right = None
             else:
-                reindex_right = compute_reindex(right_old_idxes[i])
+                reindex_right = joined_index
             reindexed_self, reindexed_other = reindexed_self.copartition_datasets(
                 axis,
                 other[i].data,
-                reindex_left,
+                joined_index,
                 reindex_right,
                 other[i]._is_transposed,
             )
@@ -2661,23 +2675,8 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
     # END UDF
 
-    # Manual Partitioning methods (e.g. merge, groupby)
-    # These methods require some sort of manual partitioning due to their
-    # nature. They require certain data to exist on the same partition, and
-    # after the shuffle, there should be only a local map required.
-    def _manual_repartition(self, axis, repartition_func, **kwargs):
-        """This method applies all manual partitioning functions.
-
-        Args:
-            axis: The axis to shuffle data along.
-            repartition_func: The function used to repartition data.
-
-        Returns:
-            A `BaseFrameManager` object.
-        """
-        func = self._prepare_method(repartition_func, **kwargs)
-        return self.data.manual_shuffle(axis, func)
-
+    # Groupby methods
+    # These are groupby helper methods to facilitate the groupby operation.
     def groupby_reduce(
         self,
         by,
@@ -2721,7 +2720,6 @@ class PandasQueryCompiler(BaseQueryCompiler):
         return self.__constructor__(new_data, new_index, new_columns)
 
     def groupby_agg(self, by, axis, agg_func, groupby_args, agg_args):
-
         remote_index = self.index if not axis else self.columns
 
         def groupby_agg_builder(df):
@@ -2773,7 +2771,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         else:
             return self.__constructor__(result_data, index, columns)
 
-    # END Manual Partitioning methods
+    # END Groupby methods
 
     # Get_dummies
     def get_dummies(self, columns, **kwargs):

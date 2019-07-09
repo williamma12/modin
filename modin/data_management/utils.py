@@ -127,43 +127,64 @@ def set_indices_for_pandas_concat(df, transposed=False):
     return df.T if transposed else df
 
 
-def compute_partition_shuffle(old_lengths, new_lengths):
+def compute_partition_shuffle(old_lengths, new_lengths, old_index=None, new_index=None):
     """Calculates split old_length partitions into new_lengths partitions.
 
     Args:
         old_lengths: Lengths of the old partitions.
         new_lengths: Lengths of the new partitions.
+        old_index: Current ordering of the labels.
+        new_index: New ordering of the labels of the data.
 
     Returns:
         List containing a list for each of the new partitions. Each of the inner
         lists contain tuples contains the index of the original partition and a
-        tuple of the indices of that partition that are in the new partition.
+        list of the indices of that partition that are in the new partition.
     """
-    result = []
-    old_index = 0
-    old_block_index = 0
-    remainder = 0
+    # Create a dataframe of index values to facilitate the shuffle calculations.
+    # The resulting dataframe will look like the following
+    #   old_block_index     old_internal_index  new_block_index
+    # 0     0                   0                   0
+    # 1     0                   1                   0
+    # 2     1                   0                   0
+    # 3     1                   1                   1
+    data = {"old_block_index": [], "old_internal_index": []}
+    new_block_index_col = []
+    for i, length in enumerate(old_lengths):
+        data["old_internal_index"].extend([j for j in range(length)])
+        data["old_block_index"].extend([i for _ in range(length)])
+        new_block_index_col.extend([i for _ in range(new_lengths[i])])
+    index_df = pandas.DataFrame(data, index=old_index)
+    if new_index is not None:
+        index_df = index_df.reindex(new_index)
+    index_df["new_block_index"] = new_block_index_col
 
-    for new_length in new_lengths:
-        index = 0
-        block_result = []
-        while index < new_length:
-            index_result = [old_block_index]
-            prev_index = index
-            old_block_length = old_lengths[old_block_index]
-            if remainder > 0:
-                index += remainder
-                remainder = 0
-            else:
-                index += old_lengths[old_block_index]
-            old_block_index += 1
-            if index > new_length:
-                remainder = index - new_length
-                index = new_length
-                old_block_index -= 1
-            end_index = old_index + (index - prev_index)
-            index_result.append([old_index, end_index])
-            old_index = end_index % old_block_length
-            block_result.append(index_result)
+    # Using the dataframe, we iterate through the dataframe to get a list of
+    # indices old block index and a list of old block indices in the new 
+    # partition.
+    result = []
+    block_result = []
+    internal_block_result = []
+    prev_old_block = 0
+    prev_new_block = 0
+    for _, row in df3.iterrows():
+        old_block_idx, old_internal_idx, new_block_idx = row
+        if new_block_idx != prev_new_block:
+            block_result.append(internal_block_result)
+            result.append(block_result)
+            internal_block_result = []
+            block_result = []
+            prev_new_block = new_block_idx
+            
+        if old_block_idx == prev_old_block and len(internal_block_result) > 0:
+            internal_block_result[1].append(old_internal_idx)
+        else:
+            if len(internal_block_result) > 0:
+                block_result.append(internal_block_result)
+            prev_old_block = old_block_idx
+            internal_block_result = [old_block_idx, [old_internal_idx]]
+    if len(internal_block_result) > 0:
+        block_result.append(internal_block_result)
+    if len(block_result) > 0:
         result.append(block_result)
     return result

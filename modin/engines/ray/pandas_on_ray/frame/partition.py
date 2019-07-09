@@ -73,6 +73,36 @@ class PandasOnRayFramePartition(BaseFramePartition):
         if self._width_cache is None:
             self._width_cache = PandasOnRayFramePartition(width)
 
+    @classmethod
+    def shuffle(cls, axis, func, transposed, part_length, part_width, indices, *partitions, **kwargs):
+        """Takes the partitions combines them based on the indices.
+
+        Args:
+            axis: Axis to combine the partitions by.
+            func: Function to apply after creating the new partition.
+            transposed: True if we need to transpose the partitions before combining.
+            part_length: Length of the resulting partition.
+            part_width: Width of the resulting partition.
+            indices: Indices of the paritions to combine.
+            *partitions: List of partitions to combine.
+
+        Returns:
+            A `BaseFramePartition` object.
+        """
+        if len(indices) == 0:
+            return pandas.DataFrame()
+        df_parts = []
+        for i, part_indices in enumerate(indices):
+            partition = partitions[i].T if transposed else partitions[i]
+            df_parts.append(
+                partition.iloc[:, part_indices]
+                if axis
+                else partition.iloc[part_indices]
+            )
+        df = pandas.concat(df_parts, axis=axis)
+        result = func(df, **kwargs)
+        return result
+
     def __copy__(self):
         return PandasOnRayFramePartition(
             self.oid, self._length_cache, self._width_cache

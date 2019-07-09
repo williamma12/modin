@@ -5,7 +5,6 @@ from ray.worker import RayTaskError
 
 from modin.engines.base.frame.partition_manager import BaseFrameManager
 from modin.engines.ray.utils import handle_ray_task_error
-from modin.data_management.utils import compute_partition_shuffle
 from pandas.api.types import is_integer
 
 
@@ -104,80 +103,3 @@ class RayFrameManager(BaseFrameManager):
                     ]
                 )
         return self._widths_cache
-
-    def manual_shuffle(self, axis, shuffle_func, lengths, transposed=False):
-        """Shuffle the partitions based on the `shuffle_func`.
-
-        Args:
-            axis: The axis to shuffle across.
-            shuffle_func: The function to apply before splitting the result.
-            lengths: The length of each partition to split the result into.
-
-        Returns:
-             A new BaseFrameManager object, the type of object that called this.
-        """
-
-        @ray.remote
-        class ShuffleActors(object):
-            def shuffle(
-                self, axis, func, internal_indices, transposed, indices, *partitions
-            ):
-                if len(indices) == 0:
-                    return pandas.DataFrame()
-                df_parts = []
-                for i, part_indices in enumerate(indices):
-                    partition = partitions[i].T if transposed else partitions[i]
-                    start, end = part_indices
-                    df_parts.append(
-                        partition.iloc[:, start:end]
-                        if axis
-                        else partition.iloc[start:end]
-                    )
-                df = pandas.concat(df_parts, axis=axis)
-                result = func(df, internal_indices)
-                return result
-
-        partition_shuffle = compute_partition_shuffle(
-            self.block_widths if axis else self.block_lengths, lengths
-        )
-        internal_indices = np.insert(np.cumsum(lengths), 0, 0)
-
-        result = []
-        partitions = self.partitions if axis else self.partitions.T
-        # We create one actor for each partition in the result
-        actors = [ShuffleActors.remote() for _ in range(len(lengths) * len(partitions))]
-        for row_idx in range(len(partitions)):
-            axis_parts = []
-            for col_idx in range(len(lengths)):
-                # Compile the arguments needed for shuffling
-                partition_args = []
-                indices = []
-                for part_idx, index in partition_shuffle[col_idx]:
-                    partition_args.append(
-                        partitions[row_idx][part_idx].oid
-                        if axis
-                        else partitions[part_idx][row_idx].oid
-                    )
-                    indices.append(index)
-                actor = actors[col_idx + row_idx * len(lengths)]
-
-                # Create shuffled data and create partition
-                part_data = actor.shuffle.remote(
-                    axis,
-                    shuffle_func,
-                    internal_indices[col_idx : col_idx + 2],
-                    transposed,
-                    indices,
-                    *partition_args
-                )
-                part_width = lengths[col_idx] if axis else self.block_widths[row_idx]
-                part_length = self.block_lengths[row_idx] if axis else lengths[col_idx]
-                axis_parts.append(
-                    self._partition_class(part_data, part_length, part_width)
-                )
-            result.append(axis_parts)
-        return (
-            self.__constructor__(np.array(result))
-            if axis
-            else self.__constructor__(np.array(result).T)
-        )

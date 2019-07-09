@@ -469,6 +469,17 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         #     return reindex_partition
 
+        if left_old_idx.equals(joined_index) and not force_repartition:
+            reindexed_self = self
+        else:
+            _, reindexed_self = reindexed_self.copartition_datasets(
+                axis,
+                reindexed_self,
+                joined_index,
+                left_old_idx,
+                self._is_transposed,
+            )
+
         for i in range(len(other)):
             # If the indices are equal we can skip partitioning so long as we are not
             # forced to repartition. See note above about `force_repartition`.
@@ -490,7 +501,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
             if right_old_idxes[i].equals(joined_index) and not force_repartition:
                 reindex_right = None
             else:
-                reindex_right = joined_index
+                reindex_right = right_old_idxes[i]
             reindexed_self, reindexed_other = reindexed_self.copartition_datasets(
                 axis,
                 other[i].data,

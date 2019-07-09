@@ -290,6 +290,7 @@ class BaseFrameManager(object):
             ):
                 new_other = other.manual_shuffle(
                     axis,
+                    None,
                     new_self.block_lengths,
                     transposed=other_is_transposed,
                 )
@@ -298,6 +299,7 @@ class BaseFrameManager(object):
             ):
                 new_other = other.manual_shuffle(
                     axis,
+                    None,
                     new_self.block_widths,
                     transposed=other_is_transposed,
                 )
@@ -308,9 +310,10 @@ class BaseFrameManager(object):
         else:
             new_other = other.manual_shuffle(
                 axis,
+                None,
                 new_self.block_lengths if axis == 0 else new_self.block_widths,
-                left_index=left_index,
-                right_index=right_index,
+                old_index=right_index,
+                new_index=left_index,
                 transposed=other_is_transposed,
             )
         return new_self, new_other
@@ -1145,11 +1148,12 @@ class BaseFrameManager(object):
         )
         return self.__constructor__(result) if axis else self.__constructor__(result.T)
 
-    def manual_shuffle(self, axis, lengths, old_index=None, new_index=None, transposed=False):
+    def manual_shuffle(self, axis, func, lengths, old_index=None, new_index=None, transposed=False, **kwargs):
         """Shuffle the partitions based on the `shuffle_func`.
 
         Args:
             axis: The axis to shuffle across.
+            func: Function to apply after creating the new partition.
             lengths: The length of each partition to split the result into.
             old_index: Current ordering of the labels.
             new_index: New ordering of the labels of the data.
@@ -1160,25 +1164,31 @@ class BaseFrameManager(object):
         """
         # TODO: Handle case where new_index is longer and where new_index has indices not in old_index
         partition_shuffle = compute_partition_shuffle(
-            self.block_widths if axis else self.block_lengths, lengths
+            self.block_widths if axis else self.block_lengths, lengths, old_index, new_index
         )
         internal_indices = np.insert(np.cumsum(lengths), 0, 0)
 
         result = []
         partitions = self.partitions if axis else self.partitions.T
+        print(partition_shuffle)
         # We create one actor for each partition in the result
         for row_idx in range(len(partitions)):
             axis_parts = []
             for col_idx in range(len(lengths)):
+                if lengths[col_idx] == 0:
+                    continue
                 # Compile the arguments needed for shuffling
                 partition_args = []
                 indices = []
                 for part_idx, index in partition_shuffle[col_idx]:
-                    partition_args.append(
-                        partitions[row_idx][part_idx].oid
-                        if axis
-                        else partitions[part_idx][row_idx].oid
-                    )
+                    if part_idx == -1:
+                        partition_args.append(None)
+                    else:
+                        partition_args.append(
+                            partitions[row_idx][part_idx]
+                            if axis
+                            else partitions[part_idx][row_idx]
+                        )
                     indices.append(index)
 
                 # Create shuffled data and create partition
@@ -1186,13 +1196,14 @@ class BaseFrameManager(object):
                 part_length = self.block_lengths[row_idx] if axis else lengths[col_idx]
                 part = self._partition_class.shuffle(
                     axis,
-                    shuffle_func,
+                    func,
                     transposed,
                     part_length,
                     part_width,
                     indices,
                     *partition_args,
                     internal_indices=internal_indices[col_idx : col_idx + 2],
+                    **kwargs,
                 )
                 axis_parts.append(part)
             result.append(axis_parts)

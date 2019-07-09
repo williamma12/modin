@@ -142,21 +142,32 @@ def compute_partition_shuffle(old_lengths, new_lengths, old_index=None, new_inde
         list of the indices of that partition that are in the new partition.
     """
     # Create a dataframe of index values to facilitate the shuffle calculations.
+    # We use -1 to represent NaN indices.
     # The resulting dataframe will look like the following
     #   old_block_index     old_internal_index  new_block_index
     # 0     0                   0                   0
     # 1     0                   1                   0
     # 2     1                   0                   0
     # 3     1                   1                   1
+    # 4     -1                  -1                  1
     data = {"old_block_index": [], "old_internal_index": []}
     new_block_index_col = []
     for i, length in enumerate(old_lengths):
         data["old_internal_index"].extend([j for j in range(length)])
         data["old_block_index"].extend([i for _ in range(length)])
-        new_block_index_col.extend([i for _ in range(new_lengths[i])])
+    for i, length in enumerate(new_lengths):
+        new_block_index_col.extend([i for _ in range(length)])
+    if new_index is not None and len(new_index) > len(old_index):
+        diff = len(new_index) - len(old_index)
+        print(diff)
+        data["old_block_index"].append([-1 for _ in range(diff)])
+        data["old_internal_index"].append([-1 for _ in range(diff)])
+        old_index = old_index.append(pandas.Index([-(i+1) for i in range(diff)]))
+
+    # Create index dataframe and compute reindex
     index_df = pandas.DataFrame(data, index=old_index)
     if new_index is not None:
-        index_df = index_df.reindex(new_index)
+        index_df = index_df.reindex(new_index).fillna(-1).astype(int)
     index_df["new_block_index"] = new_block_index_col
 
     # Using the dataframe, we iterate through the dataframe to get a list of
@@ -167,7 +178,7 @@ def compute_partition_shuffle(old_lengths, new_lengths, old_index=None, new_inde
     internal_block_result = []
     prev_old_block = 0
     prev_new_block = 0
-    for _, row in df3.iterrows():
+    for _, row in index_df.iterrows():
         old_block_idx, old_internal_idx, new_block_idx = row
         if new_block_idx != prev_new_block:
             block_result.append(internal_block_result)

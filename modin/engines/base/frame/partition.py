@@ -51,6 +51,25 @@ class BaseFramePartition(object):  # pragma: no cover
 
     def drain_call_queue(self):
         """Execute all functionality stored in the call queue."""
+        raise NotImplementedError("Must be implemented in child class")
+
+    @classmethod
+    def shuffle(cls, axis, func, transposed, part_length, part_width, indices, *partitions, **kwargs):
+        """Takes the partitions combines them based on the indices.
+
+        Args:
+            axis: Axis to combine the partitions by.
+            func: Function to apply after creating the new partition.
+            transposed: True if we need to transpose the partitions before combining.
+            part_length: Length of the resulting partition.
+            part_width: Width of the resulting partition.
+            indices: Indices of the paritions to combine.
+            *partitions: List of partitions to combine.
+
+        Returns:
+            A `BaseFramePartition` object.
+        """
+        raise NotImplementedError("Must be implemented in child class")
 
     def to_pandas(self):
         """Convert the object stored in this partition to a Pandas DataFrame.

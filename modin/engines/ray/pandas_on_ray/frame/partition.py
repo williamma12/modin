@@ -100,12 +100,8 @@ class PandasOnRayFramePartition(BaseFramePartition):
                 call_queues.append(part.call_queue)
                 part_oids.append(part.oid)
         result, length, width = deploy_ray_shuffle.remote(axis, func, kwargs, part_length if axis else part_width, transposed, indices, call_queues, *part_oids)
-        if func is None:
-            length = part_length
-            width = part_width
-        else:
-            length = PandasOnRayFramePartition(length)
-            width = PandasOnRayFramePartition(width)
+        length = part_length if func is None else PandasOnRayFramePartition(length)
+        width = part_width if func is None else PandasOnRayFramePartition(width)
         return PandasOnRayFramePartition(result, length, width)
 
     def __copy__(self):

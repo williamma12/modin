@@ -79,6 +79,52 @@ class PandasOnPythonFramePartition(BaseFramePartition):
         new_obj._length_cache, new_obj._width_cache = len(row_indices), len(col_indices)
         return new_obj
 
+    @classmethod
+    def shuffle(cls, axis, func, transposed, part_length, part_width, indices, *partitions, **kwargs):
+        """Takes the partitions combines them based on the indices.
+
+        Args:
+            axis: Axis to combine the partitions by.
+            func: Function to apply after creating the new partition.
+            transposed: True if we need to transpose the partitions before combining.
+            part_length: Length of the resulting partition.
+            part_width: Width of the resulting partition.
+            indices: Indices of the paritions to combine.
+            *partitions: List of partitions to combine.
+
+        Returns:
+            A `BaseFramePartition` object.
+        """
+        if len(indices) == 0:
+            return pandas.DataFrame()
+
+        df_parts = []
+        call_queues = [part.call_queue if part is not None else [] for part in partitions]
+        for i, part_indices in enumerate(indices):
+            partition = partitions[i].T if transposed else partitions[i]
+            
+            # Drain call_queue for partition. We assume that the indices are correct
+            # only after draining the call_queue
+            for func, kwargs in call_queues[i]:
+                func = deserialize(func)
+                kwargs = deserialize(kwargs)
+                try:
+                    partition = func(partition, **kwargs)
+                except ValueError:
+                    partition = func(partition.copy(), **kwargs)
+
+            if partition is None:
+                df_part = pandas.DataFrame(np.repeat(np.NaN, length).reshape((length, 1) if axis else (1, length)))
+            else:
+                df_part = partition.iloc[:, part_indices] if axis else partition.iloc[part_indices]
+            df_parts.append(df_part)
+        df = pandas.concat(df_parts, axis=axis)
+        if shuffle_func is not None:
+            result = shuffle_func(df, **kwargs)
+        else:
+            result = df
+        return PandasOnRayFramePartition(result)
+
     def to_pandas(self):
         """Convert the object stored in this partition to a Pandas DataFrame.
 

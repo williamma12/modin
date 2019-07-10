@@ -1179,7 +1179,9 @@ class BaseFrameManager(object):
                 partition_args = []
                 indices = []
                 for part_idx, index in partition_shuffle[col_idx]:
-                    partition_args.append(partitions[row_idx][part_idx] if part_idx != -1 else None)
+                    partition_args.append(
+                        partitions[row_idx][part_idx] if part_idx != -1 else None
+                    )
                     indices.append(index)
 
                 # Create shuffled data and create partition

@@ -436,8 +436,8 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         # Reindex self if needed
         reindexed_self = (
-            reindexed_self.copartition_datasets(
-                axis, reindexed_self, joined_index, left_old_idx, self._is_transposed
+            self.copartition_datasets(
+                axis, self, joined_index, left_old_idx, self._is_transposed
             )
             if not left_old_idx.equals(joined_index) or force_repartition
             else self.data

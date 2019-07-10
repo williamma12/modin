@@ -434,78 +434,28 @@ class PandasQueryCompiler(BaseQueryCompiler):
         left_old_idx = self.index if axis == 0 else self.columns
         right_old_idxes = index_obj
 
-        # Start with this and we'll repartition the first time, and then not again.
-        reindexed_self = self.data
-        reindexed_other_list = []
-
-        # Insert the columns that we need to for self
-        # TODO: DO ABOVE COMMENT
-
-        # def compute_reindex(old_idx):
-        #     """Create a function based on the old index and axis.
-
-        #     Args:
-        #         old_idx: The old index/columns
-
-        #     Returns:
-        #         A function that will be run in each partition.
-        #     """
-
-        #     def reindex_partition(df, internal_indices=[]):
-        #         if len(internal_indices) == 0:
-        #             internal_indices = [0, len(df.columns if axis else df.index)]
-        #         start, end = internal_indices
-        #         partitioned_old_idx = old_idx[start:end]
-        #         partitioned_joined_index = joined_index[start:end]
-        #         if axis == 0:
-        #             df.index = partitioned_old_idx
-        #             new_df = df.reindex(index=partitioned_joined_index)
-        #             new_df.index = pandas.RangeIndex(len(new_df.index))
-        #         else:
-        #             df.columns = partitioned_old_idx
-        #             new_df = df.reindex(columns=partitioned_joined_index)
-        #             new_df.columns = pandas.RangeIndex(len(new_df.columns))
-        #         return new_df
-
-        #     return reindex_partition
-
-        if left_old_idx.equals(joined_index) and not force_repartition:
-            reindexed_self = self
-        else:
-            _, reindexed_self = reindexed_self.copartition_datasets(
+        # Reindex self if needed
+        reindexed_self = (
+            reindexed_self.copartition_datasets(
                 axis, reindexed_self, joined_index, left_old_idx, self._is_transposed
             )
+            if not left_old_idx.equals(joined_index) or force_repartition
+            else self.data
+        )
 
-        for i in range(len(other)):
-            # If the indices are equal we can skip partitioning so long as we are not
-            # forced to repartition. See note above about `force_repartition`.
-            # if i != 0 or (left_old_idx.equals(joined_index) and not force_repartition):
-            #     reindex_left = None
-            # else:
-            #     reindex_left = self._prepare_method(compute_reindex(left_old_idx))
-            # if right_old_idxes[i].equals(joined_index) and not force_repartition:
-            #     reindex_right = None
-            # else:
-            #     reindex_right = compute_reindex(right_old_idxes[i])
-            # reindexed_self, reindexed_other = reindexed_self.copartition_datasets(
-            #     axis,
-            #     other[i].data,
-            #     reindex_left,
-            #     reindex_right,
-            #     other[i]._is_transposed,
-            # )
-            if right_old_idxes[i].equals(joined_index) and not force_repartition:
-                reindex_right = None
-            else:
-                reindex_right = right_old_idxes[i]
-            reindexed_self, reindexed_other = reindexed_self.copartition_datasets(
+        # Repartition others
+        reindexed_other_list = [
+            reindexed_self.copartition_datasets(
                 axis,
                 other[i].data,
                 joined_index,
-                reindex_right,
+                right_old_idxes[i]
+                if not right_old_idxes[i].equals(joined_index) or force_repartition
+                else None,
                 other[i]._is_transposed,
             )
-            reindexed_other_list.append(reindexed_other)
+            for i in range(len(other))
+        ]
         return reindexed_self, reindexed_other_list, joined_index
 
     # Data Management Methods

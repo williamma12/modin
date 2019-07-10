@@ -274,28 +274,22 @@ class BaseFrameManager(object):
                 other and use the identity indextion if splitting needs to happen.
 
         Returns:
-            A tuple of BlockPartitions objects, left and right.
+            Updated other BlockPartition object.
         """
-        # if left_index is None:
-        #     new_self = self
-        # else:
-        #     new_self = self.map_across_full_axis(axis, left_index)
-        new_self = self
-
         # This block of code will only shuffle if absolutely necessary. If we do need to
         # shuffle, we use the identity indextion and then reshuffle.
         if right_index is None:
             if axis == 0 and not np.array_equal(
-                other.block_lengths, new_self.block_lengths
+                other.block_lengths, self.block_lengths
             ):
                 new_other = other.manual_shuffle(
-                    axis, None, new_self.block_lengths, transposed=other_is_transposed
+                    axis, None, self.block_lengths, transposed=other_is_transposed
                 )
             elif axis == 1 and not np.array_equal(
-                other.block_widths, new_self.block_widths
+                other.block_widths, self.block_widths
             ):
                 new_other = other.manual_shuffle(
-                    axis, None, new_self.block_widths, transposed=other_is_transposed
+                    axis, None, self.block_widths, transposed=other_is_transposed
                 )
             else:
                 new_other = other
@@ -305,12 +299,12 @@ class BaseFrameManager(object):
             new_other = other.manual_shuffle(
                 axis,
                 None,
-                new_self.block_lengths if axis == 0 else new_self.block_widths,
+                self.block_lengths if axis == 0 else self.block_widths,
                 old_index=right_index,
                 new_index=left_index,
                 transposed=other_is_transposed,
             )
-        return new_self, new_other
+        return new_other
 
     def map_across_full_axis(self, axis, map_func):
         """Applies `map_func` to every partition.
@@ -1165,7 +1159,6 @@ class BaseFrameManager(object):
         Returns:
              A new BaseFrameManager object, the type of object that called this.
         """
-        # TODO: Handle case where new_index is longer and where new_index has indices not in old_index
         partition_shuffle = compute_partition_shuffle(
             self.block_widths if axis else self.block_lengths,
             lengths,
@@ -1176,8 +1169,7 @@ class BaseFrameManager(object):
 
         result = []
         partitions = self.partitions if axis else self.partitions.T
-        print(partition_shuffle)
-        # We create one actor for each partition in the result
+
         for row_idx in range(len(partitions)):
             axis_parts = []
             for col_idx in range(len(lengths)):
@@ -1187,14 +1179,7 @@ class BaseFrameManager(object):
                 partition_args = []
                 indices = []
                 for part_idx, index in partition_shuffle[col_idx]:
-                    if part_idx == -1:
-                        partition_args.append(None)
-                    else:
-                        partition_args.append(
-                            partitions[row_idx][part_idx]
-                            if axis
-                            else partitions[part_idx][row_idx]
-                        )
+                    partition_args.append(partitions[row_idx][part_idx] if part_idx != -1 else None)
                     indices.append(index)
 
                 # Create shuffled data and create partition

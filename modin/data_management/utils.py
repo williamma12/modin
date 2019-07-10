@@ -159,9 +159,8 @@ def compute_partition_shuffle(old_lengths, new_lengths, old_index=None, new_inde
         new_block_index_col.extend([i for _ in range(length)])
     if new_index is not None and len(new_index) > len(old_index):
         diff = len(new_index) - len(old_index)
-        print(diff)
-        data["old_block_index"].append([-1 for _ in range(diff)])
-        data["old_internal_index"].append([-1 for _ in range(diff)])
+        data["old_block_index"].extend([-1 for _ in range(diff)])
+        data["old_internal_index"].extend([-1 for _ in range(diff)])
         old_index = old_index.append(pandas.Index([-(i + 1) for i in range(diff)]))
 
     # Create index dataframe and compute reindex

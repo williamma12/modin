@@ -54,7 +54,17 @@ class BaseFramePartition(object):  # pragma: no cover
         raise NotImplementedError("Must be implemented in child class")
 
     @classmethod
-    def shuffle(cls, axis, func, transposed, part_length, part_width, indices, *partitions, **kwargs):
+    def shuffle(
+        cls,
+        axis,
+        func,
+        transposed,
+        part_length,
+        part_width,
+        indices,
+        *partitions,
+        **kwargs
+    ):
         """Takes the partitions combines them based on the indices.
 
         Args:

@@ -473,11 +473,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
             reindexed_self = self
         else:
             _, reindexed_self = reindexed_self.copartition_datasets(
-                axis,
-                reindexed_self,
-                joined_index,
-                left_old_idx,
-                self._is_transposed,
+                axis, reindexed_self, joined_index, left_old_idx, self._is_transposed
             )
 
         for i in range(len(other)):

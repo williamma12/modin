@@ -75,7 +75,17 @@ class PandasOnRayFramePartition(BaseFramePartition):
             self._width_cache = PandasOnRayFramePartition(width)
 
     @classmethod
-    def shuffle(cls, axis, func, transposed, part_length, part_width, indices, *partitions, **kwargs):
+    def shuffle(
+        cls,
+        axis,
+        func,
+        transposed,
+        part_length,
+        part_width,
+        indices,
+        *partitions,
+        **kwargs
+    ):
         """Takes the partitions combines them based on the indices.
 
         Args:
@@ -99,7 +109,16 @@ class PandasOnRayFramePartition(BaseFramePartition):
             else:
                 call_queues.append(part.call_queue)
                 part_oids.append(part.oid)
-        result, length, width = deploy_ray_shuffle.remote(axis, func, kwargs, part_length if axis else part_width, transposed, indices, call_queues, *part_oids)
+        result, length, width = deploy_ray_shuffle.remote(
+            axis,
+            func,
+            kwargs,
+            part_length if axis else part_width,
+            transposed,
+            indices,
+            call_queues,
+            *part_oids
+        )
         length = part_length if func is None else PandasOnRayFramePartition(length)
         width = part_width if func is None else PandasOnRayFramePartition(width)
         return PandasOnRayFramePartition(result, length, width)
@@ -205,13 +224,20 @@ def deploy_ray_func(call_queue, partition):  # pragma: no cover
 
 
 @ray.remote(num_return_vals=3)
-def deploy_ray_shuffle(axis, shuffle_func, kwargs, length, transposed, indices, call_queues, *partitions):
+def deploy_ray_shuffle(
+    axis, shuffle_func, kwargs, length, transposed, indices, call_queues, *partitions
+):
+    def deserialize(obj):
+        if isinstance(obj, ray.ObjectID):
+            return ray.get(obj)
+        return obj
+
     if len(indices) == 0:
         return pandas.DataFrame()
     df_parts = []
     for i, part_indices in enumerate(indices):
         partition = partitions[i].T if transposed else partitions[i]
-        
+
         # Drain call_queue for partition. We assume that the indices are correct
         # only after draining the call_queue
         for func, kwargs in call_queues[i]:
@@ -223,13 +249,23 @@ def deploy_ray_shuffle(axis, shuffle_func, kwargs, length, transposed, indices, 
                 partition = func(partition.copy(), **kwargs)
 
         if partition is None:
-            df_part = pandas.DataFrame(np.repeat(np.NaN, length).reshape((length, 1) if axis else (1, length)))
+            df_part = pandas.DataFrame(
+                np.repeat(np.NaN, length).reshape((length, 1) if axis else (1, length))
+            )
         else:
-            df_part = partition.iloc[:, part_indices] if axis else partition.iloc[part_indices]
+            df_part = (
+                partition.iloc[:, part_indices]
+                if axis
+                else partition.iloc[part_indices]
+            )
         df_parts.append(df_part)
     df = pandas.concat(df_parts, axis=axis)
     if shuffle_func is not None:
         result = shuffle_func(df, **kwargs)
     else:
         result = df
-    return (result, len(result) if hasattr(result, "__len__") else 0, len(result.columns) if hasattr(result, "columns") else 0,)
+    return (
+        result,
+        len(result) if hasattr(result, "__len__") else 0,
+        len(result.columns) if hasattr(result, "columns") else 0,
+    )

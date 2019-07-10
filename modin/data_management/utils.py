@@ -162,7 +162,7 @@ def compute_partition_shuffle(old_lengths, new_lengths, old_index=None, new_inde
         print(diff)
         data["old_block_index"].append([-1 for _ in range(diff)])
         data["old_internal_index"].append([-1 for _ in range(diff)])
-        old_index = old_index.append(pandas.Index([-(i+1) for i in range(diff)]))
+        old_index = old_index.append(pandas.Index([-(i + 1) for i in range(diff)]))
 
     # Create index dataframe and compute reindex
     index_df = pandas.DataFrame(data, index=old_index)
@@ -171,7 +171,7 @@ def compute_partition_shuffle(old_lengths, new_lengths, old_index=None, new_inde
     index_df["new_block_index"] = new_block_index_col
 
     # Using the dataframe, we iterate through the dataframe to get a list of
-    # indices old block index and a list of old block indices in the new 
+    # indices old block index and a list of old block indices in the new
     # partition.
     result = []
     block_result = []
@@ -186,7 +186,7 @@ def compute_partition_shuffle(old_lengths, new_lengths, old_index=None, new_inde
             internal_block_result = []
             block_result = []
             prev_new_block = new_block_idx
-            
+
         if old_block_idx == prev_old_block and len(internal_block_result) > 0:
             internal_block_result[1].append(old_internal_idx)
         else:

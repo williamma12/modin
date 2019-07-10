@@ -289,19 +289,13 @@ class BaseFrameManager(object):
                 other.block_lengths, new_self.block_lengths
             ):
                 new_other = other.manual_shuffle(
-                    axis,
-                    None,
-                    new_self.block_lengths,
-                    transposed=other_is_transposed,
+                    axis, None, new_self.block_lengths, transposed=other_is_transposed
                 )
             elif axis == 1 and not np.array_equal(
                 other.block_widths, new_self.block_widths
             ):
                 new_other = other.manual_shuffle(
-                    axis,
-                    None,
-                    new_self.block_widths,
-                    transposed=other_is_transposed,
+                    axis, None, new_self.block_widths, transposed=other_is_transposed
                 )
             else:
                 new_other = other
@@ -1096,14 +1090,14 @@ class BaseFrameManager(object):
                         func,
                         row_internal_indices=row_internal_idx,
                         col_internal_indices=col_internal_idx,
-                        **item
+                        **item,
                     )
                 else:
                     block_result = remote_part.apply(
                         func,
                         row_internal_indices=row_internal_idx,
                         col_internal_indices=col_internal_idx,
-                        **item
+                        **item,
                     )
                 if keep_remaining:
                     partition_copy[row_blk_idx, col_blk_idx] = block_result
@@ -1148,7 +1142,16 @@ class BaseFrameManager(object):
         )
         return self.__constructor__(result) if axis else self.__constructor__(result.T)
 
-    def manual_shuffle(self, axis, func, lengths, old_index=None, new_index=None, transposed=False, **kwargs):
+    def manual_shuffle(
+        self,
+        axis,
+        func,
+        lengths,
+        old_index=None,
+        new_index=None,
+        transposed=False,
+        **kwargs,
+    ):
         """Shuffle the partitions based on the `shuffle_func`.
 
         Args:
@@ -1164,7 +1167,10 @@ class BaseFrameManager(object):
         """
         # TODO: Handle case where new_index is longer and where new_index has indices not in old_index
         partition_shuffle = compute_partition_shuffle(
-            self.block_widths if axis else self.block_lengths, lengths, old_index, new_index
+            self.block_widths if axis else self.block_lengths,
+            lengths,
+            old_index,
+            new_index,
         )
         internal_indices = np.insert(np.cumsum(lengths), 0, 0)
 

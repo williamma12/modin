@@ -1,6 +1,5 @@
 import ray
 import numpy as np
-import pandas
 from ray.worker import RayTaskError
 
 from modin.engines.base.frame.partition_manager import BaseFrameManager

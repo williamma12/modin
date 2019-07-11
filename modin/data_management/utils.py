@@ -52,6 +52,34 @@ def compute_chunksize(df, num_splits, default_block_size=32, axis=None):
     return row_chunksize, col_chunksize
 
 
+def compute_lengths(df, axis, num_splits, default_block_size=32):
+    """Computes lengths and/or widths of the dataframe partitions
+
+    Args:
+        df: The DataFrame to split.
+        axis: The axis to split. (0: Index, 1: Columns)
+        num_splits: The maximum number of splits to separate the DataFrame into.
+        default_block_size: Minimum number of rows/columns (default set to 32x32).
+
+    Returns:
+         Returns a list of the lengths/widths of the partitioned DataFrame.
+    """
+    total_length = len(df.columns) if axis == 1 else len(df)
+    chunksize = compute_chunksize(df, num_splits, axis=axis)
+    if chunksize > total_length:
+        lengths = [total_length]
+    else:
+        lengths = [
+            chunksize
+            if total_length > (chunksize * (i + 1))
+            else 0
+            if total_length < (chunksize * i)
+            else total_length - (chunksize * i)
+            for i in range(num_splits)
+        ]
+    return lengths
+
+
 def _get_nan_block_id(partition_class, n_row=1, n_col=1, transpose=False):
     """A memory efficient way to get a block of NaNs.
 

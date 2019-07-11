@@ -10,9 +10,10 @@ import pandas
 from modin.error_message import ErrorMessage
 from modin.data_management.utils import (
     compute_chunksize,
-    compute_partition_shuffle,
+    compute_lengths,
     _get_nan_block_id,
     set_indices_for_pandas_concat,
+    compute_partition_shuffle,
 )
 
 
@@ -261,35 +262,46 @@ class BaseFrameManager(object):
         return self.__constructor__(new_partitions)
 
     def copartition_datasets(
-        self, axis, other, left_index, right_index, other_is_transposed
+        self, axis, other, new_index, old_index, other_is_transposed
     ):
         """Copartition two BlockPartitions objects.
 
         Args:
             axis: The axis to copartition.
-            other: The other BlockPartitions object to copartition with.
-            left_index: The function to apply to left. If None, just use the dimension
+            new_index: The function to apply to left. If None, just use the dimension
                 of self (based on axis).
-            right_index: The function to apply to right. If None, check the dimensions of
+            old_index: The function to apply to right. If None, check the dimensions of
                 other and use the identity indextion if splitting needs to happen.
+            other: The other BlockPartitions object to copartition with. If None,
+                reindex self.
 
         Returns:
             Updated other BlockPartition object.
         """
+        if other is None:
+            assert new_index is not None
+            assert old_index is not None
+            other = self
+            empty_pd_df = pandas.DataFrame(columns=new_index, index=new_index)
+            num_splits = self._compute_num_partitions()
+            lengths = compute_lengths(empty_pd_df, axis, num_splits)
+        else:
+            lengths = self.block_lengths if axis == 0 else self.block_widths
+
         # This block of code will only shuffle if absolutely necessary. If we do need to
         # shuffle, we use the identity indextion and then reshuffle.
-        if right_index is None:
+        if old_index is None:
             if axis == 0 and not np.array_equal(
                 other.block_lengths, self.block_lengths
             ):
                 new_other = other.manual_shuffle(
-                    axis, None, self.block_lengths, transposed=other_is_transposed
+                    axis, None, lengths, transposed=other_is_transposed
                 )
             elif axis == 1 and not np.array_equal(
                 other.block_widths, self.block_widths
             ):
                 new_other = other.manual_shuffle(
-                    axis, None, self.block_widths, transposed=other_is_transposed
+                    axis, None, lengths, transposed=other_is_transposed
                 )
             else:
                 new_other = other
@@ -299,9 +311,9 @@ class BaseFrameManager(object):
             new_other = other.manual_shuffle(
                 axis,
                 None,
-                self.block_lengths if axis == 0 else self.block_widths,
-                old_index=right_index,
-                new_index=left_index,
+                lengths,
+                old_index=old_index,
+                new_index=new_index,
                 transposed=other_is_transposed,
             )
         return new_other

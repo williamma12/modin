@@ -126,10 +126,9 @@ class PandasOnPythonFramePartition(BaseFramePartition):
 
             if partition is None:
                 length = part_length if axis else part_width
+                nan_len = len(part_indices)
                 df_part = pandas.DataFrame(
-                    np.repeat(np.NaN, length).reshape(
-                        (length, 1) if axis else (1, length)
-                    )
+                    np.repeat(np.NaN, nan_len*length).reshape((length, nan_len) if axis else (nan_len, length))
                 )
             else:
                 df_part = (

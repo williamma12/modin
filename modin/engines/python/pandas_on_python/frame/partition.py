@@ -109,13 +109,19 @@ class PandasOnPythonFramePartition(BaseFramePartition):
         if len(indices) == 0:
             return pandas.DataFrame()
 
+        call_queues = []
+        parts = []
+        for part in partitions:
+            if part is None:
+                call_queues.append([])
+                parts.append(None)
+            else:
+                call_queues.append(part.call_queue)
+                parts.append(part.get())
+
         df_parts = []
-        call_queues = [
-            part.call_queue if part is not None else [] for part in partitions
-        ]
-        partitions = [part.get() for part in partitions if part is not None]
         for i, part_indices in enumerate(indices):
-            partition = partitions[i].T if transposed else partitions[i]
+            partition = parts[i].T if transposed else parts[i]
 
             # Drain call_queue for partition. We assume that the indices are correct
             # only after draining the call_queue

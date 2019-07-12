@@ -113,6 +113,7 @@ class PandasOnPythonFramePartition(BaseFramePartition):
         call_queues = [
             part.call_queue if part is not None else [] for part in partitions
         ]
+        partitions = [part.get() for part in partitions if part is not None]
         for i, part_indices in enumerate(indices):
             partition = partitions[i].T if transposed else partitions[i]
 
@@ -128,7 +129,9 @@ class PandasOnPythonFramePartition(BaseFramePartition):
                 length = part_length if axis else part_width
                 nan_len = len(part_indices)
                 df_part = pandas.DataFrame(
-                    np.repeat(np.NaN, nan_len*length).reshape((length, nan_len) if axis else (nan_len, length))
+                    np.repeat(np.NaN, nan_len * length).reshape(
+                        (length, nan_len) if axis else (nan_len, length)
+                    )
                 )
             else:
                 df_part = (

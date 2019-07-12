@@ -251,7 +251,9 @@ def deploy_ray_shuffle(
         if partition is None:
             nan_len = len(part_indices)
             df_part = pandas.DataFrame(
-                np.repeat(np.NaN, nan_len*length).reshape((length, nan_len) if axis else (nan_len, length))
+                np.repeat(np.NaN, nan_len * length).reshape(
+                    (length, nan_len) if axis else (nan_len, length)
+                )
             )
         else:
             df_part = (

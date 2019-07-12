@@ -400,8 +400,7 @@ class RayIO(BaseIO):
             chunk_size = max(1, (total_bytes - f.tell()) // num_parts)
 
             # Metadata
-            column_chunksize = compute_chunksize(empty_pd_df, num_splits, axis=1)
-            column_widths = compute_lengths(empty_pd_df, axis, num_splits)
+            column_widths = compute_lengths(empty_pd_df, 1, num_splits)
             if len(column_widths) == 1:
                 # This prevents us from unnecessarily serializing a bunch of empty
                 # objects.

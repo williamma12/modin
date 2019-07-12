@@ -1156,7 +1156,7 @@ class BaseFrameManager(object):
         old_index=None,
         new_index=None,
         transposed=False,
-        **kwargs,
+        **kwargs
     ):
         """Shuffle the partitions based on the `shuffle_func`.
 
@@ -1208,7 +1208,7 @@ class BaseFrameManager(object):
                     indices,
                     *partition_args,
                     internal_indices=internal_indices[col_idx : col_idx + 2],
-                    **kwargs,
+                    **kwargs
                 )
                 axis_parts.append(part)
             result.append(axis_parts)

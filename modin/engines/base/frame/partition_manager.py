@@ -1177,10 +1177,7 @@ class BaseFrameManager(object):
         block_lengths = new_self.block_widths if transposed else new_self.block_lengths
 
         partition_shuffle = compute_partition_shuffle(
-            block_widths if axis else block_lengths,
-            lengths,
-            old_index,
-            new_index,
+            block_widths if axis else block_lengths, lengths, old_index, new_index
         )
         internal_indices = np.insert(np.cumsum(lengths), 0, 0)
 

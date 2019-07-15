@@ -236,7 +236,11 @@ def deploy_ray_shuffle(
         return pandas.DataFrame()
     df_parts = []
     for i, part_indices in enumerate(indices):
-        partition = partitions[i].T if transposed and partitions[i] is not None else partitions[i]
+        partition = (
+            partitions[i].T
+            if transposed and partitions[i] is not None
+            else partitions[i]
+        )
 
         # Drain call_queue for partition. We assume that the indices are correct
         # only after draining the call_queue

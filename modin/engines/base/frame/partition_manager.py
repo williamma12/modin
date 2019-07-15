@@ -1171,8 +1171,13 @@ class BaseFrameManager(object):
         Returns:
              A new BaseFrameManager object, the type of object that called this.
         """
+        # TODO(williamma12): remove this once the metadata class is able to determine transposed.
+        new_self = self.transpose() if transposed else self
+        block_widths = new_self.block_lengths if transposed else new_self.block_widths
+        block_lengths = new_self.block_widths if transposed else new_self.block_lengths
+
         partition_shuffle = compute_partition_shuffle(
-            self.block_widths if axis else self.block_lengths,
+            block_widths if axis else block_lengths,
             lengths,
             old_index,
             new_index,
@@ -1180,9 +1185,7 @@ class BaseFrameManager(object):
         internal_indices = np.insert(np.cumsum(lengths), 0, 0)
 
         result = []
-        partitions = self.partitions if axis else self.partitions.T
-
-        for row_idx in range(len(partitions)):
+        for row_idx in range(len(self.partitions)):
             axis_parts = []
             for col_idx in range(len(lengths)):
                 if lengths[col_idx] == 0:
@@ -1192,13 +1195,13 @@ class BaseFrameManager(object):
                 indices = []
                 for part_idx, index in partition_shuffle[col_idx]:
                     partition_args.append(
-                        partitions[row_idx][part_idx] if part_idx != -1 else None
+                        self.partitions[row_idx][part_idx] if part_idx != -1 else None
                     )
                     indices.append(index)
 
                 # Create shuffled data and create partition
-                part_width = lengths[col_idx] if axis else self.block_widths[row_idx]
-                part_length = self.block_lengths[row_idx] if axis else lengths[col_idx]
+                part_width = lengths[col_idx] if axis else block_widths[row_idx]
+                part_length = block_lengths[row_idx] if axis else lengths[col_idx]
                 part = self._partition_class.shuffle(
                     axis,
                     func,

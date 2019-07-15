@@ -121,7 +121,7 @@ class PandasOnPythonFramePartition(BaseFramePartition):
 
         df_parts = []
         for i, part_indices in enumerate(indices):
-            partition = parts[i].T if transposed else parts[i]
+            partition = parts[i].T if transposed and parts[i] is not None else parts[i]
 
             # Drain call_queue for partition. We assume that the indices are correct
             # only after draining the call_queue

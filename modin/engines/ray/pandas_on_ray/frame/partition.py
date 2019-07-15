@@ -226,7 +226,7 @@ def deploy_ray_func(call_queue, partition):  # pragma: no cover
 @ray.remote(num_return_vals=3)
 def deploy_ray_shuffle(
     axis, shuffle_func, kwargs, length, transposed, indices, call_queues, *partitions
-):
+):  # pragma: no cover
     def deserialize(obj):
         if isinstance(obj, ray.ObjectID):
             return ray.get(obj)

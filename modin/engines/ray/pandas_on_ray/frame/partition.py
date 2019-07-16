@@ -266,7 +266,7 @@ def deploy_ray_shuffle(
                 else partition.iloc[part_indices]
             )
         df_parts.append(df_part)
-    df = pandas.concat(df_parts, axis=axis)
+    df = pandas.concat(df_parts, axis=axis).reset_index(drop=True)
     if shuffle_func is not None:
         result = shuffle_func(df, **kwargs)
     else:

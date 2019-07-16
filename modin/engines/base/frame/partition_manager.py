@@ -268,12 +268,13 @@ class BaseFrameManager(object):
 
         Args:
             axis: The axis to copartition.
+            other: The other BlockPartitions object to copartition with. If None,
+                reindex self.
             new_index: The function to apply to left. If None, just use the dimension
                 of self (based on axis).
             old_index: The function to apply to right. If None, check the dimensions of
                 other and use the identity indextion if splitting needs to happen.
-            other: The other BlockPartitions object to copartition with. If None,
-                reindex self.
+            other_is_transposed: True if the other partitions need to be transposed.
 
         Returns:
             Updated other BlockPartition object.
@@ -282,9 +283,7 @@ class BaseFrameManager(object):
             assert new_index is not None
             assert old_index is not None
             other = self
-            empty_pd_df = pandas.DataFrame(columns=new_index, index=new_index)
-            num_splits = self._compute_num_partitions()
-            lengths = compute_lengths(empty_pd_df, axis, num_splits)
+            lengths = None
         else:
             lengths = self.block_lengths if axis == 0 else self.block_widths
 
@@ -1152,7 +1151,7 @@ class BaseFrameManager(object):
         self,
         axis,
         func,
-        lengths,
+        lengths=None,
         old_index=None,
         new_index=None,
         transposed=False,
@@ -1163,7 +1162,8 @@ class BaseFrameManager(object):
         Args:
             axis: The axis to shuffle across.
             func: Function to apply after creating the new partition.
-            lengths: The length of each partition to split the result into.
+            lengths: The length of each partition to split the result into. If
+            None, calculate the lengths based off of the new_index.
             old_index: Current ordering of the labels.
             new_index: New ordering of the labels of the data.
             transposed: True if the internal partitions need to be transposed.
@@ -1176,6 +1176,13 @@ class BaseFrameManager(object):
         block_widths = new_self.block_lengths if transposed else new_self.block_widths
         block_lengths = new_self.block_widths if transposed else new_self.block_lengths
 
+        if lengths is None:
+            empty_pd_df = pandas.DataFrame(
+                columns=new_index if not axis else None,
+                index=new_index if axis else None,
+            )
+            num_splits = self._compute_num_partitions()
+            lengths = compute_lengths(empty_pd_df, axis ^ 1, num_splits)
         partition_shuffle = compute_partition_shuffle(
             block_widths if axis else block_lengths, lengths, old_index, new_index
         )

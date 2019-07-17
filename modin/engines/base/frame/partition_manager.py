@@ -311,8 +311,8 @@ class BaseFrameManager(object):
                 axis,
                 None,
                 lengths,
-                old_index=old_index,
-                new_index=new_index,
+                old_labels=old_index,
+                new_labels=new_index,
                 transposed=other_is_transposed,
             )
         return new_other
@@ -1152,8 +1152,8 @@ class BaseFrameManager(object):
         axis,
         func,
         lengths=None,
-        old_index=None,
-        new_index=None,
+        old_labels=None,
+        new_labels=None,
         transposed=False,
         **kwargs
     ):
@@ -1163,9 +1163,9 @@ class BaseFrameManager(object):
             axis: The axis to shuffle across.
             func: Function to apply after creating the new partition.
             lengths: The length of each partition to split the result into. If
-            None, calculate the lengths based off of the new_index.
-            old_index: Current ordering of the labels.
-            new_index: New ordering of the labels of the data.
+            None, calculate the lengths based off of the new_label.
+            old_label: Current ordering of the labels.
+            new_label: New ordering of the labels of the data.
             transposed: True if the internal partitions need to be transposed.
 
         Returns:
@@ -1178,42 +1178,46 @@ class BaseFrameManager(object):
 
         if lengths is None:
             empty_pd_df = pandas.DataFrame(
-                columns=new_index if not axis else None,
-                index=new_index if axis else None,
+                columns=new_labels if not axis else None,
+                index=new_labels if axis else None,
             )
             num_splits = self._compute_num_partitions()
             lengths = compute_lengths(empty_pd_df, axis ^ 1, num_splits)
-        partition_shuffle = compute_partition_shuffle(
-            block_widths if axis else block_lengths, lengths, old_index, new_index
+
+        new_partitions, old_partition_splits = compute_partition_shuffle(
+            block_widths if axis else block_lengths, lengths, old_labels, new_labels
         )
-        internal_indices = np.insert(np.cumsum(lengths), 0, 0)
+
+        # Convert the existing partitions to the splits that we need and convert the
+        # empty partitions to their lengths to be added when concating.
+        partitions = self.partitions.T if axis else self.partitions
+        old_partitions = {}
+        empty_partitions = []
+        for idx, splits in old_partition_splits.items():
+            if idx != -1:
+                old_partitions[idx] = np.array([part.split(axis, splits, transposed) for part in partitions[idx]])
+            else:
+                empty_partitions = [len(split) for split in splits]
 
         result = []
+        internal_indices = np.insert(np.cumsum(lengths), 0, 0)
         for row_idx in range(len(self.partitions)):
             axis_parts = []
             for col_idx in range(len(lengths)):
                 if lengths[col_idx] == 0:
                     continue
-                # Compile the arguments needed for shuffling
-                partition_args = []
-                indices = []
-                for part_idx, index in partition_shuffle[col_idx]:
-                    partition_args.append(
-                        self.partitions[row_idx][part_idx] if part_idx != -1 else None
-                    )
-                    indices.append(index)
+                # Get the partition splits needed for the block.
+                block_parts = [old_partitions[idx][row_idx, split_idx] if idx != -1 else empty_partitions[split_idx] for idx, split_idx in new_partitions[col_idx]]
 
-                # Create shuffled data and create partition
+                # Create shuffled data and create partition.
                 part_width = lengths[col_idx] if axis else block_widths[row_idx]
                 part_length = block_lengths[row_idx] if axis else lengths[col_idx]
                 part = self._partition_class.shuffle(
                     axis,
                     func,
-                    transposed,
                     part_length,
                     part_width,
-                    indices,
-                    *partition_args,
+                    *block_parts,
                     internal_indices=internal_indices[col_idx : col_idx + 2],
                     **kwargs
                 )

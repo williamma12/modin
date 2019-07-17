@@ -61,7 +61,6 @@ class BaseFramePartition(object):  # pragma: no cover
         transposed,
         part_length,
         part_width,
-        indices,
         *partitions,
         **kwargs
     ):

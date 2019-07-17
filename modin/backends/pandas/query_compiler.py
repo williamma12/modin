@@ -787,8 +787,8 @@ class PandasQueryCompiler(BaseQueryCompiler):
         new_data = self.data.manual_shuffle(
             axis,
             None,
-            old_index=old_labels,
-            new_index=labels,
+            old_labels=old_labels,
+            new_labels=labels,
             transposed=self._is_transposed,
         )
         new_index = self.index if axis else labels

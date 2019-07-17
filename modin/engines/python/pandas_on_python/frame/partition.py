@@ -79,18 +79,54 @@ class PandasOnPythonFramePartition(BaseFramePartition):
         )
         new_obj._length_cache, new_obj._width_cache = len(row_indices), len(col_indices)
         return new_obj
+    
+    def split(self, axis, splits, transposed):
+        """Split partition along axis given list of resulting index groups (splits).
+
+        Args:
+            axis: Axis to split along.
+            splits: List of list of indexes to group together.
+            transposed: True if the partition needs to be transposed first.
+
+        Returns:
+            Returns PandasOnRayFramePartitions for each of the resulting splits.
+        """
+        if len(splits) == 1 and len(splits[0]) == (
+            self.length() if axis else self.width()
+        ):
+            if transposed:
+                call_queue = self.call_queue + [(pandas.DataFrame.transpose, {})]
+            return [
+                PandasOnRayFramePartition(
+                    self.oid, self._length_cache, self._width_cache, call_queue
+                )
+            ]
+        else:
+            # Drain call queue.
+            if len(call_queue) > 0:
+                for func, kwargs in call_queue:
+                    try:
+                        partition = func(partition, **kwargs)
+                    except ValueError:
+                        partition = func(partition.copy(), **kwargs)
+
+            # Orient and cut up partition.
+            part = partition.T if transposed else partition
+            new_parts = [part.iloc[:, index] if axis else part.iloc[index] for index in splits]
+
+            # Update self after draining call queue
+            self.data = partition
+            self.call_queue = []
+            self._length_cache = len(partition) if hasattr(partition, "__len__") else 0
+            self._width_cache = len(partition.columns) if hasattr(partition, "columns") else 0
+
+            return [
+                PandasOnPythonFramePartition(new_part) for new_part in new_parts
+            ]
 
     @classmethod
     def shuffle(
-        cls,
-        axis,
-        func,
-        transposed,
-        part_length,
-        part_width,
-        indices,
-        *partitions,
-        **kwargs
+        cls, axis, func, transposed, part_length, part_width, *partitions, **kwargs
     ):
         """Takes the partitions combines them based on the indices.
 
@@ -110,47 +146,51 @@ class PandasOnPythonFramePartition(BaseFramePartition):
             return pandas.DataFrame()
 
         call_queues = []
-        parts = []
+        part_oids = []
         for part in partitions:
-            if part is None:
-                call_queues.append([])
-                parts.append(None)
-            else:
+            if isinstance(part, PandasOnRayFramePartition):
+                part_oids.append(part.oid)
                 call_queues.append(part.call_queue)
-                parts.append(part.get())
+            else:
+                part_oids.append(part)
+                call_queues.append(None)
 
+        # Create partition from partitions.
         df_parts = []
-        for i, part_indices in enumerate(indices):
-            partition = parts[i].T if transposed and parts[i] is not None else parts[i]
-
-            # Drain call_queue for partition. We assume that the indices are correct
-            # only after draining the call_queue
-            for queued_func, kwargs in call_queues[i]:
-                try:
-                    partition = queued_func(partition, **kwargs)
-                except ValueError:
-                    partition = queued_func(partition.copy(), **kwargs)
-
-            if partition is None:
-                length = part_length if axis else part_width
-                nan_len = len(part_indices)
+        for i in range(len(partitions)):
+            call_queue = call_queues[i]
+            partition = partitions[i]
+            if isinstance(partition, int):
+                nan_len = partition
                 df_part = pandas.DataFrame(
                     np.repeat(np.NaN, nan_len * length).reshape(
                         (length, nan_len) if axis else (nan_len, length)
                     )
                 )
             else:
-                df_part = (
-                    partition.iloc[:, part_indices]
-                    if axis
-                    else partition.iloc[part_indices]
-                )
+                # Drain call queue.
+                if len(call_queue) > 0:
+                    for func, kwargs in call_queue:
+                        try:
+                            partition = func(partition, **kwargs)
+                        except ValueError:
+                            partition = func(partition.copy(), **kwargs)
+                df_part = partition
             df_parts.append(df_part)
-        df = pandas.concat(df_parts, axis=axis).reset_index(drop=True)
-        if func is not None:
-            result = func(df, **kwargs)
+        df = pandas.concat(df_parts, axis=axis)
+
+        # Make sure internal indices are correct.
+        if axis:
+            df.columns = pandas.RangeIndex(len(df.columns))
+        else:
+            df.index = pandas.RangeIndex(len(df))
+
+        # Apply post-shuffle function.
+        if shuffle_func is not None:
+            result = shuffle_func(df, **kwargs)
         else:
             result = df
+
         return PandasOnPythonFramePartition(result)
 
     def to_pandas(self):

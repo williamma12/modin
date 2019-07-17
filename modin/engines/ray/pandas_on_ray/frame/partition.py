@@ -75,6 +75,16 @@ class PandasOnRayFramePartition(BaseFramePartition):
             self._width_cache = PandasOnRayFramePartition(width)
 
     def split(self, axis, splits, transposed):
+        """Split partition along axis given list of resulting index groups (splits).
+
+        Args:
+            axis: Axis to split along.
+            splits: List of list of indexes to group together.
+            transposed: True if the partition needs to be transposed first.
+
+        Returns:
+            Returns PandasOnRayFramePartitions for each of the resulting splits.
+        """
         if len(splits) == 1 and len(splits[0]) == (
             self.length() if axis else self.width()
         ):
@@ -90,17 +100,17 @@ class PandasOnRayFramePartition(BaseFramePartition):
                 args=[self.call_queue, self.oid, axis, splits, transposed],
                 num_return_vals=3 + len(splits),
             )
-            new_self = new_parts.pop(0)
-            new_self_length = new_parts.pop(0)
-            new_self_width = new_parts.pop(0)
-            self.oid = new_self
+
+            # Get and update self after draining call queue
+            new_self_data, new_parts = new_parts[:3], new_parts[3:]
+            self.oid = new_self_data[0]
+            self._length_cache = PandasOnRayFramePartition(new_self_data[1])
+            self._width_cache = PandasOnRayFramePartition(new_self_data[2])
             self.call_queue = []
-            self._length_cache = PandasOnRayFramePartition(new_self_length)
-            self._width_cache = PandasOnRayFramePartition(new_self_width)
-            new_partitions = [
+
+            return [
                 PandasOnRayFramePartition(new_part) for new_part in new_parts
             ]
-            return new_partitions
 
     @classmethod
     def shuffle(cls, axis, func, part_length, part_width, *partitions, **kwargs):
@@ -111,7 +121,6 @@ class PandasOnRayFramePartition(BaseFramePartition):
             func: Function to apply after creating the new partition.
             part_length: Length of the resulting partition.
             part_width: Width of the resulting partition.
-            internal_indices: Internal indices to update along axis
             *partitions: List of partitions to combine.
 
         Returns:
@@ -317,6 +326,7 @@ def deploy_ray_shuffle(
         result = shuffle_func(df, **kwargs)
     else:
         result = df
+
     return (
         result,
         len(result) if hasattr(result, "__len__") else 0,

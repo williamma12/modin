@@ -53,19 +53,28 @@ class BaseFramePartition(object):  # pragma: no cover
         """Execute all functionality stored in the call queue."""
         raise NotImplementedError("Must be implemented in child class")
 
+    def split(self, axis, splits, transposed):
+        """Split partition along axis given list of resulting index groups (splits).
+
+        Args:
+            axis: Axis to split along.
+            splits: List of list of indexes to group together.
+            transposed: True if the partition needs to be transposed first.
+
+        Returns:
+            Returns PandasOnRayFramePartitions for each of the resulting splits.
+        """
+        raise NotImplementedError("Must be implemented in child class")
+
     @classmethod
-    def shuffle(
-        cls, axis, func, transposed, part_length, part_width, *partitions, **kwargs
-    ):
+    def shuffle(cls, axis, func, part_length, part_width, *partitions, **kwargs):
         """Takes the partitions combines them based on the indices.
 
         Args:
             axis: Axis to combine the partitions by.
             func: Function to apply after creating the new partition.
-            transposed: True if we need to transpose the partitions before combining.
             part_length: Length of the resulting partition.
             part_width: Width of the resulting partition.
-            indices: Indices of the paritions to combine.
             *partitions: List of partitions to combine.
 
         Returns:

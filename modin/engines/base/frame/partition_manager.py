@@ -1195,31 +1195,31 @@ class BaseFrameManager(object):
         empty_partitions = []
         for idx, splits in old_partition_splits.items():
             if idx != -1:
-                old_partitions[idx] = np.array([part.split(axis, splits, transposed) for part in partitions[idx]])
+                old_partitions[idx] = np.array(
+                    [part.split(axis, splits, transposed) for part in partitions[idx]]
+                )
             else:
                 empty_partitions = [len(split) for split in splits]
 
         result = []
-        internal_indices = np.insert(np.cumsum(lengths), 0, 0)
         for row_idx in range(len(self.partitions)):
             axis_parts = []
             for col_idx in range(len(lengths)):
                 if lengths[col_idx] == 0:
                     continue
                 # Get the partition splits needed for the block.
-                block_parts = [old_partitions[idx][row_idx, split_idx] if idx != -1 else empty_partitions[split_idx] for idx, split_idx in new_partitions[col_idx]]
+                block_parts = [
+                    old_partitions[idx][row_idx, split_idx]
+                    if idx != -1
+                    else empty_partitions[split_idx]
+                    for idx, split_idx in new_partitions[col_idx]
+                ]
 
                 # Create shuffled data and create partition.
                 part_width = lengths[col_idx] if axis else block_widths[row_idx]
                 part_length = block_lengths[row_idx] if axis else lengths[col_idx]
                 part = self._partition_class.shuffle(
-                    axis,
-                    func,
-                    part_length,
-                    part_width,
-                    *block_parts,
-                    internal_indices=internal_indices[col_idx : col_idx + 2],
-                    **kwargs
+                    axis, func, part_length, part_width, *block_parts, **kwargs
                 )
                 axis_parts.append(part)
             result.append(axis_parts)

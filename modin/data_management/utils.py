@@ -210,7 +210,9 @@ def compute_partition_shuffle(old_lengths, new_lengths, old_index=None, new_inde
     prev_old_block_idx = -2
     prev_new_block_idx = -2
 
-    for old_block_idx, old_internal_idx, new_block_idx in index_df.itertuples(index=False):
+    for old_block_idx, old_internal_idx, new_block_idx in index_df.itertuples(
+        index=False
+    ):
         # Calculate the old partition splits.
         if new_block_idx != prev_new_block_idx or old_block_idx != prev_old_block_idx:
             # Create a old partitions split if either of the block indices are not equal to the last one.

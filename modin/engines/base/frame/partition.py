@@ -55,14 +55,7 @@ class BaseFramePartition(object):  # pragma: no cover
 
     @classmethod
     def shuffle(
-        cls,
-        axis,
-        func,
-        transposed,
-        part_length,
-        part_width,
-        *partitions,
-        **kwargs
+        cls, axis, func, transposed, part_length, part_width, *partitions, **kwargs
     ):
         """Takes the partitions combines them based on the indices.
 

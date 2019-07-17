@@ -75,12 +75,21 @@ class PandasOnRayFramePartition(BaseFramePartition):
             self._width_cache = PandasOnRayFramePartition(width)
 
     def split(self, axis, splits, transposed):
-        if len(splits) == 1 and len(splits[0]) == (self.length() if axis else self.width()):
+        if len(splits) == 1 and len(splits[0]) == (
+            self.length() if axis else self.width()
+        ):
             if transposed:
                 call_queue = self.call_queue + [(pandas.DataFrame.transpose, {})]
-            return [PandasOnRayFramePartition(self.oid, self._length_cache, self._width_cache, call_queue)]
+            return [
+                PandasOnRayFramePartition(
+                    self.oid, self._length_cache, self._width_cache, call_queue
+                )
+            ]
         else:
-            new_parts = deploy_ray_split._remote(args=[self.call_queue, self.oid, axis, splits, transposed], num_return_vals=3+len(splits))
+            new_parts = deploy_ray_split._remote(
+                args=[self.call_queue, self.oid, axis, splits, transposed],
+                num_return_vals=3 + len(splits),
+            )
             new_self = new_parts.pop(0)
             new_self_length = new_parts.pop(0)
             new_self_width = new_parts.pop(0)
@@ -88,19 +97,13 @@ class PandasOnRayFramePartition(BaseFramePartition):
             self.call_queue = []
             self._length_cache = PandasOnRayFramePartition(new_self_length)
             self._width_cache = PandasOnRayFramePartition(new_self_width)
-            new_partitions = [PandasOnRayFramePartition(new_part) for new_part in new_parts]
+            new_partitions = [
+                PandasOnRayFramePartition(new_part) for new_part in new_parts
+            ]
             return new_partitions
 
     @classmethod
-    def shuffle(
-        cls,
-        axis,
-        func,
-        part_length,
-        part_width,
-        *partitions,
-        **kwargs
-    ):
+    def shuffle(cls, axis, func, part_length, part_width, *partitions, **kwargs):
         """Takes the partitions combines them based on the indices.
 
         Args:
@@ -236,7 +239,9 @@ def deploy_ray_func(call_queue, partition):  # pragma: no cover
 
 
 @ray.remote
-def deploy_ray_split(call_queue, partition, axis, splits, transposed):  # pragma: no cover
+def deploy_ray_split(
+    call_queue, partition, axis, splits, transposed
+):  # pragma: no cover
     def deserialize(obj):
         if isinstance(obj, ray.ObjectID):
             return ray.get(obj)
@@ -255,7 +260,12 @@ def deploy_ray_split(call_queue, partition, axis, splits, transposed):  # pragma
     # Orient and cut up partition.
     part = partition.T if transposed else partition
     result = [part.iloc[:, index] if axis else part.iloc[index] for index in splits]
-    return [partition, len(partition) if hasattr(partition, "__len__") else 0, len(partition.columns) if hasattr(partition, "columns") else 0] + result 
+    return [
+        partition,
+        len(partition) if hasattr(partition, "__len__") else 0,
+        len(partition.columns) if hasattr(partition, "columns") else 0,
+    ] + result
+
 
 @ray.remote(num_return_vals=3)
 def deploy_ray_shuffle(
@@ -297,7 +307,6 @@ def deploy_ray_shuffle(
     df = pandas.concat(df_parts, axis=axis)
 
     # Make sure internal indices are correct.
-    start, end = internal_indices
     if axis:
         df.columns = pandas.RangeIndex(len(df.columns))
     else:

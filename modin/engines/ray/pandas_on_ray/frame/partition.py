@@ -108,9 +108,7 @@ class PandasOnRayFramePartition(BaseFramePartition):
             self._width_cache = PandasOnRayFramePartition(new_self_data[2])
             self.call_queue = []
 
-            return [
-                PandasOnRayFramePartition(new_part) for new_part in new_parts
-            ]
+            return [PandasOnRayFramePartition(new_part) for new_part in new_parts]
 
     @classmethod
     def shuffle(cls, axis, func, part_length, part_width, *partitions, **kwargs):

@@ -103,6 +103,7 @@ class PandasOnPythonFramePartition(BaseFramePartition):
             ]
         else:
             partition = self.data
+            call_queue = self.call_queue
             # Drain call queue.
             if len(call_queue) > 0:
                 for func, kwargs in call_queue:

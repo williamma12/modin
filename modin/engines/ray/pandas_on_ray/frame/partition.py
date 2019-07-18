@@ -74,13 +74,13 @@ class PandasOnRayFramePartition(BaseFramePartition):
         if self._width_cache is None:
             self._width_cache = PandasOnRayFramePartition(width)
 
-    def split(self, axis, splits, transposed):
+    def split(self, axis, is_transposed, splits):
         """Split partition along axis given list of resulting index groups (splits).
 
         Args:
             axis: Axis to split along.
             splits: List of list of indexes to group together.
-            transposed: True if the partition needs to be transposed first.
+            is_transposed: True if the partition needs to be is_transposed first.
 
         Returns:
             Returns PandasOnRayFramePartitions for each of the resulting splits.
@@ -88,7 +88,7 @@ class PandasOnRayFramePartition(BaseFramePartition):
         if len(splits) == 1 and len(splits[0]) == (
             self.length() if axis else self.width()
         ):
-            if transposed:
+            if is_transposed:
                 call_queue = self.call_queue + [(pandas.DataFrame.transpose, {})]
             return [
                 PandasOnRayFramePartition(
@@ -97,7 +97,7 @@ class PandasOnRayFramePartition(BaseFramePartition):
             ]
         else:
             new_parts = deploy_ray_split._remote(
-                args=[self.call_queue, self.oid, axis, splits, transposed],
+                args=[self.call_queue, self.oid, axis, splits, is_transposed],
                 num_return_vals=3 + len(splits),
             )
 
@@ -247,7 +247,7 @@ def deploy_ray_func(call_queue, partition):  # pragma: no cover
 
 @ray.remote
 def deploy_ray_split(
-    call_queue, partition, axis, splits, transposed
+    call_queue, partition, axis, splits, is_transposed
 ):  # pragma: no cover
     def deserialize(obj):
         if isinstance(obj, ray.ObjectID):
@@ -265,7 +265,7 @@ def deploy_ray_split(
                 partition = func(partition.copy(), **kwargs)
 
     # Orient and cut up partition.
-    part = partition.T if transposed else partition
+    part = partition.T if is_transposed else partition
     result = [part.iloc[:, index] if axis else part.iloc[index] for index in splits]
     return [
         partition,

@@ -784,12 +784,11 @@ class PandasQueryCompiler(BaseQueryCompiler):
             )
 
         old_labels = self.columns if axis else self.index
-        new_data = self.data.manual_shuffle(
+        new_data = self.data.shuffle(
             axis,
-            None,
+            self._is_transposed,
             old_labels=old_labels,
             new_labels=labels,
-            transposed=self._is_transposed,
         )
         new_index = self.index if axis else labels
         new_columns = labels if axis else self.columns

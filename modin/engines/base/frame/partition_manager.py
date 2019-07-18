@@ -293,27 +293,26 @@ class BaseFrameManager(object):
             if axis == 0 and not np.array_equal(
                 other.block_lengths, self.block_lengths
             ):
-                new_other = other.manual_shuffle(
-                    axis, None, lengths, transposed=other_is_transposed
+                new_other = other.shuffle(
+                    axis, other_is_transposed, lengths=lengths
                 )
             elif axis == 1 and not np.array_equal(
                 other.block_widths, self.block_widths
             ):
-                new_other = other.manual_shuffle(
-                    axis, None, lengths, transposed=other_is_transposed
+                new_other = other.shuffle(
+                    axis, other_is_transposed, lengths=lengths
                 )
             else:
                 new_other = other
         # Most of the time, we will be given an operation to do. We perform that with
-        # manual_shuffle.
+        # shuffle.
         else:
-            new_other = other.manual_shuffle(
+            new_other = other.shuffle(
                 axis,
-                None,
-                lengths,
+                other_is_transposed,
+                lengths=lengths,
                 old_labels=old_index,
                 new_labels=new_index,
-                transposed=other_is_transposed,
             )
         return new_other
 
@@ -1147,34 +1146,24 @@ class BaseFrameManager(object):
         )
         return self.__constructor__(result) if axis else self.__constructor__(result.T)
 
-    def manual_shuffle(
-        self,
-        axis,
-        func,
-        lengths=None,
-        old_labels=None,
-        new_labels=None,
-        transposed=False,
-        **kwargs
-    ):
-        """Shuffle the partitions based on the `shuffle_func`.
+    def shuffle(self, axis, is_transposed, lengths=None, old_labels=None, new_labels=None):
+        """Shuffle the partitions to match the lengths and new_labels.
 
         Args:
             axis: The axis to shuffle across.
-            func: Function to apply after creating the new partition.
+            is_transposed: True if the internal partitions need to be is_transposed.
             lengths: The length of each partition to split the result into. If
             None, calculate the lengths based off of the new_label.
             old_label: Current ordering of the labels.
             new_label: New ordering of the labels of the data.
-            transposed: True if the internal partitions need to be transposed.
 
         Returns:
-             A new BaseFrameManager object, the type of object that called this.
+            A new BaseFrameManager object, the type of objec that called this.
         """
-        # TODO(williamma12): remove this once the metadata class is able to determine transposed.
-        new_self = self.transpose() if transposed else self
-        block_widths = new_self.block_lengths if transposed else new_self.block_widths
-        block_lengths = new_self.block_widths if transposed else new_self.block_lengths
+        # TODO(williamma12): remove this once the metadata class is able to determine is_transposed.
+        new_self = self.transpose() if is_transposed else self
+        block_widths = new_self.block_lengths if is_transposed else new_self.block_widths
+        block_lengths = new_self.block_widths if is_transposed else new_self.block_lengths
 
         if lengths is None:
             empty_pd_df = pandas.DataFrame(
@@ -1196,10 +1185,47 @@ class BaseFrameManager(object):
         for idx, splits in old_partition_splits.items():
             if idx != -1:
                 old_partitions[idx] = np.array(
-                    [part.split(axis, splits, transposed) for part in partitions[idx]]
+                    [part.split(axis, is_transposed, splits) for part in partitions[idx]]
                 )
             else:
                 empty_partitions = [len(split) for split in splits]
+
+        return self._shuffle(axis, is_transposed, lengths, new_partitions, old_partitions, empty_partitions)
+
+    def _shuffle(
+        self,
+        axis,
+        is_transposed,
+        lengths,
+        new_partitions,
+        old_partitions,
+        empty_partitions,
+        func=None,
+        **kwargs
+    ):
+        """Shuffle the partitions based on the `shuffle_func`.
+
+        Args:
+            axis: The axis to shuffle across.
+            is_transposed: True if the internal partitions need to be is_transposed.
+            lengths: The length of each partition to split the result into.
+            new_partitions: List of tuples, each of which contain the new partition
+            index and a list of tuples of the old partition index and the index of 
+            the split in old_partitions.
+            old_partitions: Dictionary with key as the old partition index and values
+            as an array of partitions that is the original partitions split for 
+            shuffling.
+            empty_partitions: List of integers containing how long each empty 
+            partition should be.
+            func: Function to apply after partitions are shuffled.
+
+        Returns:
+             A new BaseFrameManager object, the type of object that called this.
+        """
+        # TODO(williamma12): remove this once the metadata class is able to determine is_transposed.
+        new_self = self.transpose() if is_transposed else self
+        block_widths = new_self.block_lengths if is_transposed else new_self.block_widths
+        block_lengths = new_self.block_widths if is_transposed else new_self.block_lengths
 
         result = []
         for row_idx in range(len(self.partitions)):

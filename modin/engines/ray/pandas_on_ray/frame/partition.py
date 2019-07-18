@@ -90,6 +90,8 @@ class PandasOnRayFramePartition(BaseFramePartition):
         ):
             if is_transposed:
                 call_queue = self.call_queue + [(pandas.DataFrame.transpose, {})]
+            else:
+                call_queue = self.call_queue
             return [
                 PandasOnRayFramePartition(
                     self.oid, self._length_cache, self._width_cache, call_queue

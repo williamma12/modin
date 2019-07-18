@@ -1183,12 +1183,12 @@ class BaseFrameManager(object):
         old_partitions = {}
         empty_partitions = []
         for idx, splits in old_partition_splits.items():
-            if idx != -1:
+            if idx == -1:
+                empty_partitions = [len(split) for split in splits]
+            else:
                 old_partitions[idx] = np.array(
                     [part.split(axis, is_transposed, splits) for part in partitions[idx]]
                 )
-            else:
-                empty_partitions = [len(split) for split in splits]
 
         return self._shuffle(axis, is_transposed, lengths, new_partitions, old_partitions, empty_partitions)
 
@@ -1228,7 +1228,9 @@ class BaseFrameManager(object):
         block_lengths = new_self.block_widths if is_transposed else new_self.block_lengths
 
         result = []
-        for row_idx in range(len(self.partitions)):
+        # We repeat this for the number of rows if we are shuffling the columns and 
+        # repeat it for the number of columns if we are shuffling the rows.
+        for row_idx in range(len(self.partitions) if axis else len(self.partitions.T)):
             axis_parts = []
             for col_idx in range(len(lengths)):
                 if lengths[col_idx] == 0:

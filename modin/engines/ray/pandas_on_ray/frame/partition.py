@@ -85,9 +85,10 @@ class PandasOnRayFramePartition(BaseFramePartition):
         Returns:
             Returns PandasOnRayFramePartitions for each of the resulting splits.
         """
+        # Check to make sure that if the split is just the original partition.
         if len(splits) == 1 and len(splits[0]) == (
-            self.length() if axis else self.width()
-        ):
+            self.width() if axis else self.length()
+        ) and all(i == splits[0][i] for i in range(len(splits[0]))):
             if is_transposed:
                 call_queue = self.call_queue + [(pandas.DataFrame.transpose, {})]
             else:
@@ -113,7 +114,7 @@ class PandasOnRayFramePartition(BaseFramePartition):
             return [PandasOnRayFramePartition(new_part) for new_part in new_parts]
 
     @classmethod
-    def shuffle(cls, axis, func, part_length, part_width, *partitions, **kwargs):
+    def shuffle(cls, axis, func, part_length, part_width, *partitions, fill_value=np.NaN, **kwargs):
         """Takes the partitions combines them based on the indices.
 
         Args:
@@ -122,6 +123,7 @@ class PandasOnRayFramePartition(BaseFramePartition):
             part_length: Length of the resulting partition.
             part_width: Width of the resulting partition.
             *partitions: List of partitions to combine.
+            fill_value: Value to fill the empty partitions with.
 
         Returns:
             A `BaseFramePartition` object.
@@ -140,6 +142,7 @@ class PandasOnRayFramePartition(BaseFramePartition):
             func,
             kwargs,
             part_length if axis else part_width,
+            fill_value,
             call_queues,
             *part_oids
         )
@@ -278,7 +281,7 @@ def deploy_ray_split(
 
 @ray.remote(num_return_vals=3)
 def deploy_ray_shuffle(
-    axis, shuffle_func, kwargs, length, call_queues, *partitions
+    axis, shuffle_func, kwargs, length, fill_value, call_queues, *partitions
 ):  # pragma: no cover
     def deserialize(obj):
         if isinstance(obj, ray.ObjectID):
@@ -297,7 +300,7 @@ def deploy_ray_shuffle(
         if isinstance(partition, int):
             nan_len = partition
             df_part = pandas.DataFrame(
-                np.repeat(np.NaN, nan_len * length).reshape(
+                np.repeat(fill_value, nan_len * length).reshape(
                     (length, nan_len) if axis else (nan_len, length)
                 )
             )
@@ -312,8 +315,12 @@ def deploy_ray_shuffle(
                     except ValueError:
                         partition = func(partition.copy(), **kwargs)
             df_part = partition
+
+        # Reset index and columns for consistent concat behavior.
+        df_part.columns = pandas.RangeIndex(len(df_part.columns))
+        df_part.index = pandas.RangeIndex(len(df_part))
         df_parts.append(df_part)
-    df = pandas.concat(df_parts, axis=axis)
+    df = pandas.concat(df_parts, axis=axis, ignore_index=True)
 
     # Make sure internal indices are correct.
     if axis:

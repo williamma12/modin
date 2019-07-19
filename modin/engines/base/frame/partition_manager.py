@@ -1146,7 +1146,7 @@ class BaseFrameManager(object):
         )
         return self.__constructor__(result) if axis else self.__constructor__(result.T)
 
-    def shuffle(self, axis, is_transposed, lengths=None, old_labels=None, new_labels=None):
+    def shuffle(self, axis, is_transposed, lengths=None, old_labels=None, new_labels=None, fill_value=np.NaN):
         """Shuffle the partitions to match the lengths and new_labels.
 
         Args:
@@ -1156,6 +1156,7 @@ class BaseFrameManager(object):
             None, calculate the lengths based off of the new_label.
             old_label: Current ordering of the labels.
             new_label: New ordering of the labels of the data.
+            fill_value: Value to fill the empty partitions with.
 
         Returns:
             A new BaseFrameManager object, the type of objec that called this.
@@ -1190,7 +1191,7 @@ class BaseFrameManager(object):
                     [part.split(axis, is_transposed, splits) for part in partitions[idx]]
                 )
 
-        return self._shuffle(axis, is_transposed, lengths, new_partitions, old_partitions, empty_partitions)
+        return self._shuffle(axis, is_transposed, lengths, new_partitions, old_partitions, empty_partitions, fill_value=fill_value)
 
     def _shuffle(
         self,
@@ -1200,6 +1201,7 @@ class BaseFrameManager(object):
         new_partitions,
         old_partitions,
         empty_partitions,
+        fill_value=np.NaN,
         func=None,
         **kwargs
     ):
@@ -1217,6 +1219,7 @@ class BaseFrameManager(object):
             shuffling.
             empty_partitions: List of integers containing how long each empty 
             partition should be.
+            fill_value: Value to fill the empty partitions with.
             func: Function to apply after partitions are shuffled.
 
         Returns:
@@ -1247,7 +1250,7 @@ class BaseFrameManager(object):
                 part_width = lengths[col_idx] if axis else block_widths[row_idx]
                 part_length = block_lengths[row_idx] if axis else lengths[col_idx]
                 part = self._partition_class.shuffle(
-                    axis, func, part_length, part_width, *block_parts, **kwargs
+                    axis, func, part_length, part_width, *block_parts, fill_value=fill_value, **kwargs
                 )
                 axis_parts.append(part)
             result.append(axis_parts)

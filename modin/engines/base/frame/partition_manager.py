@@ -1153,6 +1153,8 @@ class BaseFrameManager(object):
     ):
         """Shuffle the partitions to match the lengths and new_labels.
 
+        Note: Naming convention for column or row follows if axis is 1.
+
         Args:
             axis: The axis to shuffle across.
             is_transposed: True if the internal partitions need to be is_transposed.
@@ -1163,7 +1165,7 @@ class BaseFrameManager(object):
             fill_value: Value to fill the empty partitions with.
 
         Returns:
-            A new BaseFrameManager object, the type of objec that called this.
+            A new BaseFrameManager object, the type of object that called this.
         """
         # TODO(williamma12): remove this once the metadata class is able to determine is_transposed.
         new_self = self.transpose() if is_transposed else self
@@ -1191,8 +1193,8 @@ class BaseFrameManager(object):
         partitions = self.partitions.T if axis else self.partitions
         old_partitions = {}
         empty_partitions = []
-        for idx, splits in old_partition_splits.items():
-            if idx == -1:
+        for col_idx, splits in old_partition_splits.items():
+            if col_idx == -1:
                 empty_partitions = [len(split) for split in splits]
             else:
                 old_partitions[idx] = np.array(
@@ -1212,33 +1214,100 @@ class BaseFrameManager(object):
             fill_value=fill_value,
         )
 
+    def sort(self, axis, is_transposed, on, ascending, nan_position, bins=[], func=None, **kwargs):
+        """Sort values.
+
+        Note: Naming convention for column or row follows if axis is 1.
+
+        Args:
+            axis: Axis to sort across.
+            is_transposed: True if the underlying partitions need to be transposed.
+            on: List of indices of the values to sort by.
+            ascending: True if ascending values.
+            na_positions: "first" puts NaNs first, "last" puts NaNs last.
+            bins: Bins that the partitions should follow.
+            func: Function to apply after sorting.
+            **kwargs: Kwargs for the function that gets applied after sorting.
+
+        Returns:
+             A new BaseFrameManager object, the type of object that called this.
+        """
+        # TODO(williamma12): remove this once the metadata class is able to determine is_transposed.
+        new_self = self.transpose() if is_transposed else self
+        block_widths = new_self.block_lengths if is_transposed else new_self.block_widths
+        block_lengths = new_self.block_widths if is_transposed else new_self.block_lengths
+
+        partitions = self.partitions if axis else self.partitions.T
+        if len(bins) == 0:
+            # Get bins to shuffle the partitions into
+            n_bins = len(partitions)
+            length = sum(block_widths) if axis else sum(block_lengths)
+            indices = np.random.randint(low=0, high=length, size=n_bins-1)
+            bin_boundary_indices = self._get_dict_of_block_index(axis^1, indices)
+        else:
+            bin_boundary_indices = None
+
+        # If axis is 1, then we want to calculate the splits for each row.
+        axis_partitions_cls = self._row_partition_class if axis else self._column_partitions_class
+        on_indices = self._get_dict_of_block_index(axis, indices, ordered=True)
+        # Make sure on_partitions are merged so that the rows are merged together
+        bins, splits, on_old_partitions, on_partitions = axis_partitions_cls.sort_split(partitions[on_row_idx], on_indices, bins, bin_boundary_indices)
+
+        # TODO: Name on columns in on_partitions to "__sort_x__" where x is the integer sort order
+
+        new_partitions = []
+        old_partitions = {-2: on_partitions}
+        transposed_partitions = partitions.T
+        n_block_columns = len(transposed_partitions)
+        for col_idx in range(n_block_columns):
+            if col_idx in on_col_idx:
+                old_partitions[col_idx] = [part for part in on_old_partitions[:, col_idx] if part is not None]
+            else:
+                old_partitions[col_idx] = np.array(
+                    [part.split(axis, is_transposed, splits) for part in transposed_partitions[col_idx]]
+                )
+            new_partitions.append([(i, col_idx) for i in range(n_block_columns)])
+
+        def sort_func(df):
+            sort_labels = [label for label in df.columns if axis else df.index if "__sort_" in label]
+            df = df.sort_values(sort_labels, axis=axis, ascending=ascending, na_positions=na_positions)
+            df = df.drop(sort_labels, axis=axis)
+            return df
+
+        return self._shuffle(axis, is_transposed, new_partitions, old_partitions, func=sort_func)
+
     def _shuffle(
         self,
         axis,
         is_transposed,
-        lengths,
         new_partitions,
         old_partitions,
-        empty_partitions,
         fill_value=np.NaN,
+        empty_partitions=[],
+        lengths=[],
         func=None,
         **kwargs
     ):
         """Shuffle the partitions based on the `shuffle_func`.
 
+        Note: Naming convention for column or row follows if axis is 1.
+
         Args:
             axis: The axis to shuffle across.
             is_transposed: True if the internal partitions need to be is_transposed.
-            lengths: The length of each partition to split the result into.
             new_partitions: List of tuples, each of which contain the new partition
             index and a list of tuples of the old partition index and the index of
             the split in old_partitions.
+            new_partitions: List of tuples, where at the new partition index, a list
+            of tuples of the old partition index and the index of the split in 
+            old_partitions.
             old_partitions: Dictionary with key as the old partition index and values
             as an array of partitions that is the original partitions split for
             shuffling.
             empty_partitions: List of integers containing how long each empty
             partition should be.
             fill_value: Value to fill the empty partitions with.
+            lengths: The length of each partition to split the result into.
             func: Function to apply after partitions are shuffled.
 
         Returns:
@@ -1258,10 +1327,13 @@ class BaseFrameManager(object):
         result = []
         # We repeat this for the number of rows if we are shuffling the columns and
         # repeat it for the number of columns if we are shuffling the rows.
-        for row_idx in range(len(self.partitions) if axis else len(self.partitions.T)):
+        partitions = self.partitions if axis else self.partitions.T
+        rows = len(partitions)
+        columns = len(lengths) if len(lengths) > 0 else len(partitions.T)
+        for row_idx in range(rows):
             axis_parts = []
-            for col_idx in range(len(lengths)):
-                if lengths[col_idx] == 0:
+            for col_idx in range(columns):
+                if len(lengths) > 0 and lengths[col_idx] == 0:
                     continue
                 # Get the partition splits needed for the block.
                 block_parts = [
@@ -1272,10 +1344,11 @@ class BaseFrameManager(object):
                 ]
 
                 # Create shuffled data and create partition.
-                part_width = lengths[col_idx] if axis else block_widths[row_idx]
-                part_length = block_lengths[row_idx] if axis else lengths[col_idx]
+                if len(lengths) > 0:
+                    part_width = lengths[col_idx] if axis else block_widths[row_idx]
+                    part_length = block_lengths[row_idx] if axis else lengths[col_idx]
                 part = self._partition_class.shuffle(
-                    axis, func, part_length, part_width, *block_parts, **kwargs
+                    axis, func, *block_parts, length=part_length, width=part_width, **kwargs
                 )
                 axis_parts.append(part)
             result.append(axis_parts)

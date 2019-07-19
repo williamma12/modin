@@ -116,7 +116,7 @@ class PandasOnRayFramePartition(BaseFramePartition):
             return [PandasOnRayFramePartition(new_part) for new_part in new_parts]
 
     @classmethod
-    def shuffle(cls, axis, func, part_length, part_width, *partitions, **kwargs):
+    def shuffle(cls, axis, func, *partitions, length, width, **kwargs):
         """Takes the partitions combines them based on the indices.
 
         Args:
@@ -143,8 +143,7 @@ class PandasOnRayFramePartition(BaseFramePartition):
             axis,
             func,
             kwargs,
-            part_length if axis else part_width,
-            fill_value,
+            length if axis else width,
             call_queues,
             *part_oids
         )
@@ -297,9 +296,13 @@ def deploy_ray_shuffle(
     # Create partition from partitions.
     df_parts = []
     for i in range(len(partitions)):
-        call_queue = call_queues[i]
         partition = partitions[i]
+        if partition is None:
+            continue
+        call_queue = call_queues[i]
         if isinstance(partition, int):
+            # Create empty partition. This is only reached during reindex and
+            # not during sorts or joins where length argument is None.
             nan_len = partition
             df_part = pandas.DataFrame(
                 np.repeat(fill_value, nan_len * length).reshape(

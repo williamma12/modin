@@ -130,7 +130,7 @@ class PandasOnPythonFramePartition(BaseFramePartition):
 
     @classmethod
     def shuffle(
-        cls, axis, func, transposed, part_length, part_width, *partitions, **kwargs
+        cls, axis, func, transposed, *partitions, length=None, width=None, **kwargs
     ):
         """Takes the partitions combines them based on the indices.
 
@@ -138,10 +138,10 @@ class PandasOnPythonFramePartition(BaseFramePartition):
             axis: Axis to combine the partitions by.
             func: Function to apply after creating the new partition.
             transposed: True if we need to transpose the partitions before combining.
-            part_length: Length of the resulting partition.
-            part_width: Width of the resulting partition.
             indices: Indices of the paritions to combine.
             *partitions: List of partitions to combine.
+            length: Length of the resulting partition.
+            width: Width of the resulting partition.
 
         Returns:
             A `BaseFramePartition` object.
@@ -162,14 +162,18 @@ class PandasOnPythonFramePartition(BaseFramePartition):
         # Create partition from partitions.
         df_parts = []
         for i in range(len(partitions)):
-            call_queue = call_queues[i]
             partition = partitions[i]
+            if partition is None:
+                continue
+            call_queue = call_queues[i]
             if isinstance(partition, int):
+                # Create empty partition. This is only reached during reindex and
+                # not during sorts or joins where length argument is None.
                 nan_len = partition
-                length = part_length if axis else part_width
+                empty_len = length if axis else width
                 df_part = pandas.DataFrame(
-                    np.repeat(np.NaN, nan_len * length).reshape(
-                        (length, nan_len) if axis else (nan_len, length)
+                    np.repeat(np.NaN, nan_len * empty_len).reshape(
+                        (empty_len, nan_len) if axis else (nan_len, empty_len)
                     )
                 )
             else:

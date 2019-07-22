@@ -1244,6 +1244,8 @@ class BaseFrameManager(object):
         Returns:
              A new BaseFrameManager object, the type of object that called this.
         """
+        kwargs["_fill_value"] = fill_value
+
         # TODO(williamma12): remove this once the metadata class is able to determine is_transposed.
         new_self = self.transpose() if is_transposed else self
         block_widths = (
@@ -1273,13 +1275,7 @@ class BaseFrameManager(object):
                 part_width = lengths[col_idx] if axis else block_widths[row_idx]
                 part_length = block_lengths[row_idx] if axis else lengths[col_idx]
                 part = self._partition_class.shuffle(
-                    axis,
-                    func,
-                    part_length,
-                    part_width,
-                    *block_parts,
-                    fill_value=fill_value,
-                    **kwargs
+                    axis, func, part_length, part_width, *block_parts, **kwargs
                 )
                 axis_parts.append(part)
             result.append(axis_parts)

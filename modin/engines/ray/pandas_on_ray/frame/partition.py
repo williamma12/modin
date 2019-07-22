@@ -116,16 +116,7 @@ class PandasOnRayFramePartition(BaseFramePartition):
             return [PandasOnRayFramePartition(new_part) for new_part in new_parts]
 
     @classmethod
-    def shuffle(
-        cls,
-        axis,
-        func,
-        part_length,
-        part_width,
-        *partitions,
-        fill_value=np.NaN,
-        **kwargs
-    ):
+    def shuffle(cls, axis, func, part_length, part_width, *partitions, **kwargs):
         """Takes the partitions combines them based on the indices.
 
         Args:
@@ -134,11 +125,11 @@ class PandasOnRayFramePartition(BaseFramePartition):
             part_length: Length of the resulting partition.
             part_width: Width of the resulting partition.
             *partitions: List of partitions to combine.
-            fill_value: Value to fill the empty partitions with.
 
         Returns:
             A `BaseFramePartition` object.
         """
+        fill_value = kwargs.pop("fill_value", np.NaN)
         call_queues = []
         part_oids = []
         for part in partitions:

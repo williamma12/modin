@@ -2638,7 +2638,14 @@ class BasePandasDataset(object):
         axis = self._get_axis_number(axis)
         if not is_list_like(by):
             by = [by]
-        new_query_compiler = self._query_compiler.sort_values(by, axis=axis, ascending=ascending, inplace=False, kind=kind, na_position=na_position)
+        new_query_compiler = self._query_compiler.sort_values(
+            by,
+            axis=axis,
+            ascending=ascending,
+            inplace=False,
+            kind=kind,
+            na_position=na_position,
+        )
         if inplace:
             self._update_inplace(new_query_compiler=new_query_compiler)
         else:

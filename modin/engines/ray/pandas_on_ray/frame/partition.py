@@ -122,8 +122,8 @@ class PandasOnRayFramePartition(BaseFramePartition):
         Args:
             axis: Axis to combine the partitions by.
             func: Function to apply after creating the new partition.
-            part_length: Length of the resulting partition.
-            part_width: Width of the resulting partition.
+            length: Length of the resulting partition.
+            width: Width of the resulting partition.
             *partitions: List of partitions to combine.
 
         Returns:
@@ -139,16 +139,11 @@ class PandasOnRayFramePartition(BaseFramePartition):
             else:
                 part_oids.append(part)
                 call_queues.append(None)
-        result, length, width = deploy_ray_shuffle.remote(
-            axis,
-            func,
-            kwargs,
-            length if axis else width,
-            call_queues,
-            *part_oids
+        result, ray_length, ray_width = deploy_ray_shuffle.remote(
+            axis, func, kwargs, length if axis else width, call_queues, *part_oids
         )
-        length = part_length if func is None else PandasOnRayFramePartition(length)
-        width = part_width if func is None else PandasOnRayFramePartition(width)
+        length = length if func is None else PandasOnRayFramePartition(ray_length)
+        width = width if func is None else PandasOnRayFramePartition(ray_width)
         return PandasOnRayFramePartition(result, length, width)
 
     def __copy__(self):
@@ -297,8 +292,6 @@ def deploy_ray_shuffle(
     df_parts = []
     for i in range(len(partitions)):
         partition = partitions[i]
-        if partition is None:
-            continue
         call_queue = call_queues[i]
         if isinstance(partition, int):
             # Create empty partition. This is only reached during reindex and
@@ -310,6 +303,8 @@ def deploy_ray_shuffle(
                 )
             )
         else:
+            if partition.empty:
+                continue
             # Drain call queue.
             if len(call_queue) > 0:
                 for func, kwargs in call_queue:
@@ -327,17 +322,17 @@ def deploy_ray_shuffle(
         df_parts.append(df_part)
     df = pandas.concat(df_parts, axis=axis, ignore_index=True)
 
-    # Make sure internal indices are correct.
-    if axis:
-        df.columns = pandas.RangeIndex(len(df.columns))
-    else:
-        df.index = pandas.RangeIndex(len(df))
-
     # Apply post-shuffle function.
     if shuffle_func is not None:
         result = shuffle_func(df, **kwargs)
     else:
         result = df
+
+    # Make sure internal indices are correct.
+    if axis:
+        result.columns = pandas.RangeIndex(len(result.columns))
+    else:
+        result.index = pandas.RangeIndex(len(result))
 
     return (
         result,

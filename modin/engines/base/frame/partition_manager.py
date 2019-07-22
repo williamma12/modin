@@ -1197,10 +1197,10 @@ class BaseFrameManager(object):
             if col_idx == -1:
                 empty_partitions = [len(split) for split in splits]
             else:
-                old_partitions[idx] = np.array(
+                old_partitions[col_idx] = np.array(
                     [
                         part.split(axis, is_transposed, splits)
-                        for part in partitions[idx]
+                        for part in partitions[col_idx]
                     ]
                 )
 
@@ -1212,9 +1212,24 @@ class BaseFrameManager(object):
             old_partitions,
             empty_partitions,
             fill_value=fill_value,
+            new_partitions,
+            old_partitions,
+            empty_partitions,
+            lengths,
+            fill_value=fill_value,
         )
 
-    def sort(self, axis, is_transposed, on, ascending, na_position, bins=[], func=None, **kwargs):
+    def sort(
+        self,
+        axis,
+        is_transposed,
+        on,
+        ascending,
+        na_position,
+        bins=[],
+        func=None,
+        **kwargs
+    ):
         """Sort values.
 
         Note: Naming convention for column or row follows if axis is 1.
@@ -1234,16 +1249,20 @@ class BaseFrameManager(object):
         """
         # TODO(williamma12): remove this once the metadata class is able to determine is_transposed.
         new_self = self.transpose() if is_transposed else self
-        block_widths = new_self.block_lengths if is_transposed else new_self.block_widths
-        block_lengths = new_self.block_widths if is_transposed else new_self.block_lengths
+        block_widths = (
+            new_self.block_lengths if is_transposed else new_self.block_widths
+        )
+        block_lengths = (
+            new_self.block_widths if is_transposed else new_self.block_lengths
+        )
 
         partitions = self.partitions if axis else self.partitions.T
         if len(bins) == 0:
             # Get bins to shuffle the partitions into
             n_bins = len(partitions)
             length = sum(block_widths) if axis else sum(block_lengths)
-            indices = np.random.randint(low=0, high=length, size=n_bins-1)
-            bin_boundary_indices = self._get_dict_of_block_index(axis^1, indices)
+            indices = np.random.randint(low=0, high=length, size=n_bins - 1)
+            bin_boundary_indices = self._get_dict_of_block_index(axis ^ 1, indices)
         else:
             bin_boundary_indices = []
 
@@ -1251,7 +1270,9 @@ class BaseFrameManager(object):
         # to the ([internal_indices], [on_orders]).
         on_indices = {}
         for i, on_index in enumerate(on):
-            partition_index, internal_index = self._get_blocks_containing_index(axis, on)
+            partition_index, internal_index = self._get_blocks_containing_index(
+                axis, on
+            )
             if partition_index in on_indices:
                 entry = on_indices[partition_index]
                 entry[0].append(internal_index)
@@ -1259,11 +1280,20 @@ class BaseFrameManager(object):
             else:
                 on_indices[partition_index] = (internal_index, [i])
 
-        # Create partitions dictionary of row index and row values. If axis is 1, 
+        # Create partitions dictionary of row index and row values. If axis is 1,
         # then we want to calculate the splits for each row.
-        axis_partitions_cls = self._row_partition_class if axis else self._column_partitions_class
+        axis_partitions_cls = (
+            self._row_partition_class if axis else self._column_partitions_class
+        )
         parts_dict = {row_idx: partitions[row_idx] for row_idx in on_indices.keys()}
-        bins, splits, on_old_partitions, on_partitions = axis_partitions_cls.sort_split(parts_dict, is_transposed, on_indices, na_position, bins, bin_boundary_indices)
+        bins, splits, on_old_partitions, on_partitions = axis_partitions_cls.sort_split(
+            parts_dict,
+            is_transposed,
+            on_indices,
+            na_position,
+            bins,
+            bin_boundary_indices,
+        )
 
         # TODO: Find a better way to do this.
         for key, old_partitions in on_old_partitions.items():
@@ -1276,17 +1306,32 @@ class BaseFrameManager(object):
         n_block_columns = len(transposed_partitions)
         for col_idx in range(n_block_columns):
             old_partitions[col_idx] = np.array(
-                [part.split(axis, is_transposed, splits) if row_idx not in on_indices else on_old_partitions[col_idx][row_idx] for row_idx, part in enumerate(transposed_partitions[col_idx])]
+                [
+                    part.split(axis, is_transposed, splits)
+                    if row_idx not in on_indices
+                    else on_old_partitions[col_idx][row_idx]
+                    for row_idx, part in enumerate(transposed_partitions[col_idx])
+                ]
             )
-            new_partitions.append([(-2, col_idx)] + [(i, col_idx) for i in range(n_block_columns)])
+            new_partitions.append(
+                [(-2, col_idx)] + [(i, col_idx) for i in range(n_block_columns)]
+            )
 
         def sort_func(df):
-            sort_labels = [label for label in (df.columns if axis else df.index) if "__sort_" in label]
-            df = df.sort_values(sort_labels, axis=axis, ascending=ascending, na_positions=na_positions)
-            df = df.drop(sort_labels, axis=axis)
+            sort_labels = [
+                label
+                for label in (df.index if axis else df.columns)
+                if isinstance(label, str) and "__sort_" in label
+            ]
+            df = df.sort_values(
+                sort_labels, axis=axis, ascending=ascending, na_position=na_position
+            )
+            df = df.drop(sort_labels, axis=axis^1)
             return df
 
-        return self._shuffle(axis, is_transposed, new_partitions, old_partitions, func=sort_func)
+        return self._shuffle(
+            axis^1, is_transposed, new_partitions, old_partitions, func=sort_func
+        )
 
     def _shuffle(
         self,
@@ -1362,7 +1407,12 @@ class BaseFrameManager(object):
                     part_width = lengths[col_idx] if axis else block_widths[row_idx]
                     part_length = block_lengths[row_idx] if axis else lengths[col_idx]
                 part = self._partition_class.shuffle(
-                    axis, func, *block_parts, length=part_length, width=part_width, **kwargs
+                    axis,
+                    func,
+                    *block_parts,
+                    length=part_length,
+                    width=part_width,
+                    **kwargs
                 )
                 axis_parts.append(part)
             result.append(axis_parts)

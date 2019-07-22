@@ -882,7 +882,9 @@ class PandasQueryCompiler(BaseQueryCompiler):
         on = labels.get_indexer(by)
 
         new_data = self.data.sort(axis, self._is_transposed, on, ascending, na_position)
-        return self.__constructor__(new_data, self.index.copy(), self.columns.copy(), self._dtype_cache)
+        return self.__constructor__(
+            new_data, self.index.copy(), self.columns.copy(), self._dtype_cache
+        )
 
     # END Reindex/reset_index
 

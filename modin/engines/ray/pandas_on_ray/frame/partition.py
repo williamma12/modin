@@ -86,9 +86,11 @@ class PandasOnRayFramePartition(BaseFramePartition):
             Returns PandasOnRayFramePartitions for each of the resulting splits.
         """
         # Check to make sure that if the split is just the original partition.
-        if len(splits) == 1 and len(splits[0]) == (
-            self.width() if axis else self.length()
-        ) and all(i == splits[0][i] for i in range(len(splits[0]))):
+        if (
+            len(splits) == 1
+            and len(splits[0]) == (self.width() if axis else self.length())
+            and all(i == splits[0][i] for i in range(len(splits[0])))
+        ):
             if is_transposed:
                 call_queue = self.call_queue + [(pandas.DataFrame.transpose, {})]
             else:
@@ -114,7 +116,16 @@ class PandasOnRayFramePartition(BaseFramePartition):
             return [PandasOnRayFramePartition(new_part) for new_part in new_parts]
 
     @classmethod
-    def shuffle(cls, axis, func, part_length, part_width, *partitions, fill_value=np.NaN, **kwargs):
+    def shuffle(
+        cls,
+        axis,
+        func,
+        part_length,
+        part_width,
+        *partitions,
+        fill_value=np.NaN,
+        **kwargs
+    ):
         """Takes the partitions combines them based on the indices.
 
         Args:

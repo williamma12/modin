@@ -797,35 +797,35 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 fill_value=fill_value,
             )
         else:
-            # To reindex, we need a function that will be shipped to each of the        
-            # partitions.        
-            def reindex_builer(df, axis, old_labels, new_labels, **kwargs):        
-                if axis:        
-                    while len(df.columns) < len(old_labels):        
-                        df[len(df.columns)] = np.nan        
-                    df.columns = old_labels        
-                    new_df = df.reindex(columns=new_labels, **kwargs)        
-                    # reset the internal columns back to a RangeIndex        
-                    new_df.columns = pandas.RangeIndex(len(new_df.columns))        
-                    return new_df        
-                else:        
-                    while len(df.index) < len(old_labels):        
-                        df.loc[len(df.index)] = np.nan        
-                    df.index = old_labels        
-                    new_df = df.reindex(index=new_labels, **kwargs)        
-                    # reset the internal index back to a RangeIndex        
-                    new_df.reset_index(inplace=True, drop=True)        
+            # To reindex, we need a function that will be shipped to each of the
+            # partitions.
+            def reindex_builer(df, axis, old_labels, new_labels, **kwargs):
+                if axis:
+                    while len(df.columns) < len(old_labels):
+                        df[len(df.columns)] = np.nan
+                    df.columns = old_labels
+                    new_df = df.reindex(columns=new_labels, **kwargs)
+                    # reset the internal columns back to a RangeIndex
+                    new_df.columns = pandas.RangeIndex(len(new_df.columns))
+                    return new_df
+                else:
+                    while len(df.index) < len(old_labels):
+                        df.loc[len(df.index)] = np.nan
+                    df.index = old_labels
+                    new_df = df.reindex(index=new_labels, **kwargs)
+                    # reset the internal index back to a RangeIndex
+                    new_df.reset_index(inplace=True, drop=True)
                     return new_df
 
-            func = self._prepare_method(        
-                lambda df: reindex_builer(df, axis, old_labels, labels, **kwargs)        
-            )        
-            # The reindex can just be mapped over the axis we are modifying. This        
-            # is for simplicity in implementation. We specify num_splits here        
-            # because if we are repartitioning we should (in the future).        
-            # Additionally this operation is often followed by an operation that        
-            # assumes identical partitioning. Internally, we *may* change the        
-            # partitioning during a map across a full axis.        
+            func = self._prepare_method(
+                lambda df: reindex_builer(df, axis, old_labels, labels, **kwargs)
+            )
+            # The reindex can just be mapped over the axis we are modifying. This
+            # is for simplicity in implementation. We specify num_splits here
+            # because if we are repartitioning we should (in the future).
+            # Additionally this operation is often followed by an operation that
+            # assumes identical partitioning. Internally, we *may* change the
+            # partitioning during a map across a full axis.
             new_data = self._map_across_full_axis(axis, func)
 
         new_index = self.index if axis else labels

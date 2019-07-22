@@ -2638,36 +2638,11 @@ class BasePandasDataset(object):
         axis = self._get_axis_number(axis)
         if not is_list_like(by):
             by = [by]
-        # Currently, sort_values will just reindex based on the sorted values.
-        # TODO create a more efficient way to sort
-        if axis == 0:
-            broadcast_value_dict = {col: self[col]._to_pandas() for col in by}
-            broadcast_values = pandas.DataFrame(broadcast_value_dict, index=self.index)
-            new_index = broadcast_values.sort_values(
-                by=by,
-                axis=axis,
-                ascending=ascending,
-                kind=kind,
-                na_position=na_position,
-            ).index
-            return self.reindex(index=new_index, copy=not inplace)
+        new_query_compiler = self._query_compiler.sort_values(by, axis=axis, ascending=ascending, inplace=False, kind=kind, na_position=na_position)
+        if inplace:
+            self._update_inplace(new_query_compiler=new_query_compiler)
         else:
-            broadcast_value_list = [
-                self[row :: len(self.index)]._to_pandas() for row in by
-            ]
-            index_builder = list(zip(broadcast_value_list, by))
-            broadcast_values = pandas.concat(
-                [row for row, idx in index_builder], copy=False
-            )
-            broadcast_values.columns = self.columns
-            new_columns = broadcast_values.sort_values(
-                by=by,
-                axis=axis,
-                ascending=ascending,
-                kind=kind,
-                na_position=na_position,
-            ).columns
-            return self.reindex(columns=new_columns, copy=not inplace)
+            return self.__constructor__(query_compiler=new_query_compiler)
 
     def std(
         self, axis=None, skipna=None, level=None, ddof=1, numeric_only=None, **kwargs

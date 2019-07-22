@@ -2,7 +2,9 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+from collections import defaultdict
 import pandas
+import numpy as np
 import ray
 
 from modin.engines.base.frame.axis_partition import PandasFrameAxisPartition
@@ -54,34 +56,65 @@ class PandasOnRayFrameAxisPartition(PandasFrameAxisPartition):
         )
 
     @classmethod
-    def split(cls, partitions, is_transposed, splits=[], sort=False, sort_on=None, sort_bins=[], sort_distribute_on=False):
+    def sort_split(cls, partitions, is_transposed, on_indices, na_position, bins=[], bin_boundaries=[]):
         """Split partition along axis given list of resulting index groups (splits).
 
+        Note: Naming convention for column or row follows if axis is 1.
+
         Args:
+            partitions: Dictionary of original row index to row partitions.
             is_transposed: True if the partition needs to be is_transposed first.
-            splits: List of list of indexes to group together.
-            sort: True if we should sort the values.
-            sort_on: Label to sort the values by.
-            sort_bins: Bins to sort the values by.
-            sort_distribute_on: True, then the on column(s) will be propragated to 
-            the all partitions. Useful for joins and groupbys.
+            on_indices: Dictionary mapping of partition_row_index to 
+            ([internal_indices], [on_orders]).
+            na_position: "first" puts NaNs first, "last" puts NaNs last.
+            bins: Dataframe containing bins to sort the values by.
+            bin_boundaries: Dictionary of (partitions_column_index, internal_index) of 
+            the bin boundary values.
 
         Returns:
             Returns PandasOnRayFramePartitions for each of the resulting splits.
         """
-        new_parts = deploy_ray_split._remote(
-            args=[self.call_queue, self.oid, axis, splits, is_transposed, sort],
-            num_return_vals=3 + len(splits),
-        )
+        # Create actors and get the on partitions and bins, if needed.
+        sort_split_actors = defaultdict(list)
+        on_parts = []
+        bin_parts = []
+        for row_idx, row_parts in partitions.items():
+            on_row_parts = []
+            on_row_indices, on_row_ordering = on_indices[row_idx]
+            for col_idx, block in enumerate(row_parts):
+                # Create and save actor
+                actor = SortSplitActor.remote(cls.axis, is_transposed, block.call_queue, block.oid, on_indices)
+                sort_split_actors[row_idx].append(actor)
 
-        # Get and update self after draining call queue
-        new_self_data, new_parts = new_parts[:3], new_parts[3:]
-        self.oid = new_self_data[0]
-        self._length_cache = PandasOnRayFramePartition(new_self_data[1])
-        self._width_cache = PandasOnRayFramePartition(new_self_data[2])
-        self.call_queue = []
+                # Get the on partition and bins, if needed.
+                if len(bin_boundaries) > 0 and col_idx in bin_boundaries and 0 in on_row_ordering:
+                    on_partition, bin_boundary = actor.get_on_partitions_and_bins._remote([on_row_indices, on_row_ordering, bin_boundaries[col_idx]], num_return_vals=2)
+                    on_row_parts.append(on_partition)
+                    bin_parts.append(bin_boundary)
+                else:
+                    on_partition = actor.get_on_partitions_and_bins.remote(on_row_indices, on_row_ordering)
+                    on_row_parts.append(on_partition)
+            on_parts.append(on_row_parts)
 
-        return [PandasOnRayFramePartition(new_part) for new_part in new_parts]
+        # Merge on parts and, if needed, bin_parts to line up with the cls.axis.
+        on_partitions = []
+        splits = []
+        bin_parts = np.array(bin_parts)
+        on_parts = np.array(on_parts)
+        if len(bin_boundaries) > 0:
+            bins = concat_partitions_and_compute_splits.remote(cls.axis, None, None, bin_parts[row_idx])
+        n_bins = sum([len(internal_index) for internal_index in bin_boundaries.values()]) + 1
+        _, on_parts_columns = on_parts.shape
+        for col_idx in range(on_parts_columns):
+            on_partitions_and_split = concat_partitions_and_compute_splits._remote([cls.axis^1, na_position, bins, *on_parts[:, col_idx]], num_return_vals=n_bins + 1)
+            #TODO: MAYBE part HERE ARE LISTS AND NOT DATAFRAMES
+            on_partitions.append([cls.partition_type(part) for part in on_partitions_and_split[:-1]])
+            splits.append(on_partitions_and_split[-1])
+
+        # Send on partitions to remaining actors to get the splits and splits for on partitions.
+        on_old_partitions = {col_idx: [cls.partition_type(sort_split_actors[row_idx][col_idx].split_partitions._remote([*splits], num_return_vals=max(1, len(splits)))) for row_idx in sort_split_actors.keys()] for col_idx in range(on_parts_columns)}
+
+        return bins, splits, on_old_partitions, on_partitions
 
     def _wrap_partitions(self, partitions):
         return [
@@ -134,40 +167,19 @@ def deploy_ray_func(func, *args):  # pragma: no cover
 
 
 @ray.remote
-class SplitActor(object):
-    def __init__(self, axis, is_transposed, call_queues, partitions, splits, sort, sort_bins, sort_distribute_on):
+class SortSplitActor(object):  # pragma: no cover
+    def __init__(self, axis, is_transposed, call_queue, partition, on_indices):
         self.axis = axis
-        self.is_transposed = is_transposed
-        self.call_queues = call_queues
-        self.partitions = partitions
-        self.sort = sort
-        self.sort_on = sort_on if is_list_like(sort_on) else [sort_on]
-        self.sort_bins = sort_bins
-        self.sort_distribute_on = sort_distribute_on
+        self.on_indices = on_indices
 
-    def deploy_ray_split(self):
-        if self.splits or (self.sort and len(self.sort_bins) == self.sort_n_bins):
-            if self.sort:
-                self.sort_bins.sort()
-            return self._split_partitions(axis, transposed, call_queues, partitions)
-        else:
-            # Get bin value from self and send it to everyone
-            return False
-
-    def add_bin(self, bin_value):
-        self.sort_bins.append(bin_value)
-        self.deploy_ray_split()
-
-    def _split_partitions(self):  # pragma: no cover
         def deserialize(obj):
             if isinstance(obj, ray.ObjectID):
                 return ray.get(obj)
             return obj
 
-        partition = self.partition
-        # Drain call queue.
-        if len(self.call_queue) > 0:
-            for func, kwargs in self.call_queue:
+        # Drain call queues
+        if len(call_queue) > 0:
+            for func, kwargs in call_queue:
                 func = deserialize(func)
                 kwargs = deserialize(kwargs)
                 try:
@@ -175,25 +187,77 @@ class SplitActor(object):
                 except ValueError:
                     partition = func(partition.copy(), **kwargs)
 
-        # Orient and cut up partition.
-        part = partition.T if axis^1^is_transposed else partition
-        if sort:
-            df = part[self.sort_on]
-            splits = []
-            result = []
-            for edge in self.sort_bins:
-                if len(df) == 0:
-                    break
-                mask = df[self.sort_on[0]] <= edge
-                indices = df.index[mask].to_list()
-                splits.append(indices)
-                result.append(df[mask])
-                df = df[~mask]
+        self.partition = partition.T if is_transposed else partition
+
+    def get_on_partitions_and_bins(self, on_indices, on_orders, bin_boundaries=[]):
+        """Get the on partitions and bins, if needed.
+
+        Args:
+            on_indices: List of internal indices of the on rows in this partition.
+            on_orders: List of the sort order of the corresponding on_indices.
+            bin_boundaries: Bin boundary column index value. Empty list of no bin
+            boundaries are needed.
+        
+        Returns:
+            On partition and, if needed, bins partition.
+        """
+        # Get and set up on labels correctly.
+        on_partition = self.partition.iloc[on_indices] if self.axis else self.partition.iloc[:, on_indices]
+        on_labels = ["__sort_{}__".format(i) for i in on_orders]
+        on_partition.index = on_labels if self.axis else pandas.RangeIndex(len(on_partition))
+        on_partition.columns = pandas.RangeIndex(len(on_partition.columns)) if self.axis else on_labels
+        
+        # Get bin boundaries, if necessary.
+        if len(bin_boundaries) == 0:
+            return on_partition
         else:
-            result = [None if len(index) == 0 else part[index] for index in self.splits]
-        self.result = [
-            partition,
-            len(partition) if hasattr(partition, "__len__") else 0,
-            len(partition.columns) if hasattr(partition, "columns") else 0,
-        ] + result
-        return True if self.sort else self.result
+            bins = on_partition.loc["__sort_0__", bin_boundaries] if self.axis else on_partition.loc[bin_boundaries, "__sort_0__"]
+            if self.axis:
+                bins.columns = pandas.RangeIndex(len(bins.columns))
+            else:
+                bins.index = pandas.RangeIndex(len(bins))
+            return on_partition, bins
+
+    def split_partitions(self, *splits):
+        if len(splits) == 0:
+            return self.partition
+        else:
+            return [None if len(index) == 0 else self.partition.iloc[:, index] if axis else self.partition.iloc[index] for index in splits]
+
+
+@ray.remote
+def concat_partitions_and_compute_splits(axis, na_position="last", bins=None, *partitions):
+    """Concats partitions to one dataframe and computs splits, if necessary.
+
+    Args:
+        axis: Axis to merge by for each row of the dataframe.
+        partitions: List of dataframes.
+        bins: Bins to calculate the splits with.
+
+    Returns:
+        One dataframe that is partitions concated on axis.
+    """
+    result = pandas.concat(partitions, axis=axis)
+    if bins is None:
+        return result
+    elif len(bins) == 0:
+        return result, list()
+    else:
+        df = result if not axis else result.T
+        bins = bins if not axis else bins.T
+        result = []
+        splits = []
+        na_first = na_position is "first"
+        for index in bins.columns:
+            if na_first:
+                mask = (df.loc["__sort_0__"] <= bins.loc["__sort_0__", index]) | (df.loc["__sort_0__"] == np.NaN)
+            else:
+                mask = df.loc["__sort_0__"] <= bins.loc["__sort_0__", index]
+            true_indices = mask.index[mask].to_list()
+            splits.append(true_indices)
+            true_df = df.loc[:, true_indices]
+            result.append(true_df if axis else true_df.T)
+            df = df.drop(true_indices, 1)
+        splits.append(df.columns.to_list())
+        result.append(df)
+        return result + [splits]

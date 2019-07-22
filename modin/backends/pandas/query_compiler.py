@@ -866,6 +866,24 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 self.data.copy(), new_index, self.columns.copy(), self._dtype_cache
             )
 
+    def sort_values(self, by, **kwargs):
+        """Sorts values by column(s)/row(s) values.
+
+        Args:
+            by: Column or axis to sort by.
+
+        Returns:
+            A new QueryCompiler sorted by columns(s)/row(s).
+        """
+        axis = kwargs.get("axis", 0)
+        ascending = kwargs.get("ascending", True)
+        na_position = kwargs.get("na_position", "first")
+        labels = self.index if axis else self.columns
+        on = labels.get_indexer(by)
+
+        new_data = self.data.sort(axis, self._is_transposed, on, ascending, na_position)
+        return self.__constructor__(new_data, self.index.copy(), self.columns.copy(), self._dtype_cache)
+
     # END Reindex/reset_index
 
     # Transpose

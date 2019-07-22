@@ -1214,7 +1214,7 @@ class BaseFrameManager(object):
             fill_value=fill_value,
         )
 
-    def sort(self, axis, is_transposed, on, ascending, nan_position, bins=[], func=None, **kwargs):
+    def sort(self, axis, is_transposed, on, ascending, na_position, bins=[], func=None, **kwargs):
         """Sort values.
 
         Note: Naming convention for column or row follows if axis is 1.
@@ -1224,7 +1224,7 @@ class BaseFrameManager(object):
             is_transposed: True if the underlying partitions need to be transposed.
             on: List of indices of the values to sort by.
             ascending: True if ascending values.
-            na_positions: "first" puts NaNs first, "last" puts NaNs last.
+            na_position: "first" puts NaNs first, "last" puts NaNs last.
             bins: Bins that the partitions should follow.
             func: Function to apply after sorting.
             **kwargs: Kwargs for the function that gets applied after sorting.
@@ -1245,31 +1245,43 @@ class BaseFrameManager(object):
             indices = np.random.randint(low=0, high=length, size=n_bins-1)
             bin_boundary_indices = self._get_dict_of_block_index(axis^1, indices)
         else:
-            bin_boundary_indices = None
+            bin_boundary_indices = []
 
-        # If axis is 1, then we want to calculate the splits for each row.
+        # Convert index of on rows to a dictionary mapping the partitions_row_index
+        # to the ([internal_indices], [on_orders]).
+        on_indices = {}
+        for i, on_index in enumerate(on):
+            partition_index, internal_index = self._get_blocks_containing_index(axis, on)
+            if partition_index in on_indices:
+                entry = on_indices[partition_index]
+                entry[0].append(internal_index)
+                entry[1].append(i)
+            else:
+                on_indices[partition_index] = (internal_index, [i])
+
+        # Create partitions dictionary of row index and row values. If axis is 1, 
+        # then we want to calculate the splits for each row.
         axis_partitions_cls = self._row_partition_class if axis else self._column_partitions_class
-        on_indices = self._get_dict_of_block_index(axis, indices, ordered=True)
-        # Make sure on_partitions are merged so that the rows are merged together
-        bins, splits, on_old_partitions, on_partitions = axis_partitions_cls.sort_split(partitions[on_row_idx], on_indices, bins, bin_boundary_indices)
+        parts_dict = {row_idx: partitions[row_idx] for row_idx in on_indices.keys()}
+        bins, splits, on_old_partitions, on_partitions = axis_partitions_cls.sort_split(parts_dict, is_transposed, on_indices, na_position, bins, bin_boundary_indices)
 
-        # TODO: Name on columns in on_partitions to "__sort_x__" where x is the integer sort order
+        # TODO: Find a better way to do this.
+        for key, old_partitions in on_old_partitions.items():
+            if len(np.array(old_partitions).shape) < 2:
+                on_old_partitions[key] = [old_partitions]
 
         new_partitions = []
-        old_partitions = {-2: on_partitions}
+        old_partitions = {-2: np.array(on_partitions)}
         transposed_partitions = partitions.T
         n_block_columns = len(transposed_partitions)
         for col_idx in range(n_block_columns):
-            if col_idx in on_col_idx:
-                old_partitions[col_idx] = [part for part in on_old_partitions[:, col_idx] if part is not None]
-            else:
-                old_partitions[col_idx] = np.array(
-                    [part.split(axis, is_transposed, splits) for part in transposed_partitions[col_idx]]
-                )
-            new_partitions.append([(i, col_idx) for i in range(n_block_columns)])
+            old_partitions[col_idx] = np.array(
+                [part.split(axis, is_transposed, splits) if row_idx not in on_indices else on_old_partitions[col_idx][row_idx] for row_idx, part in enumerate(transposed_partitions[col_idx])]
+            )
+            new_partitions.append([(-2, col_idx)] + [(i, col_idx) for i in range(n_block_columns)])
 
         def sort_func(df):
-            sort_labels = [label for label in df.columns if axis else df.index if "__sort_" in label]
+            sort_labels = [label for label in (df.columns if axis else df.index) if "__sort_" in label]
             df = df.sort_values(sort_labels, axis=axis, ascending=ascending, na_positions=na_positions)
             df = df.drop(sort_labels, axis=axis)
             return df
@@ -1344,6 +1356,8 @@ class BaseFrameManager(object):
                 ]
 
                 # Create shuffled data and create partition.
+                part_width = 0
+                part_length = 0
                 if len(lengths) > 0:
                     part_width = lengths[col_idx] if axis else block_widths[row_idx]
                     part_length = block_lengths[row_idx] if axis else lengths[col_idx]

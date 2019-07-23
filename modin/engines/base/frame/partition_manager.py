@@ -1207,11 +1207,6 @@ class BaseFrameManager(object):
         return self._shuffle(
             axis,
             is_transposed,
-            lengths,
-            new_partitions,
-            old_partitions,
-            empty_partitions,
-            fill_value=fill_value,
             new_partitions,
             old_partitions,
             empty_partitions,
@@ -1296,9 +1291,9 @@ class BaseFrameManager(object):
         )
 
         # TODO: Find a better way to do this.
-        for key, old_partitions in on_old_partitions.items():
-            if len(np.array(old_partitions).shape) < 2:
-                on_old_partitions[key] = [old_partitions]
+        # for key, old_partitions in on_old_partitions.items():
+        #     if len(np.array(old_partitions).shape) < 2:
+        #         on_old_partitions[key] = [old_partitions]
 
         new_partitions = []
         old_partitions = {-2: np.array(on_partitions)}
@@ -1307,15 +1302,26 @@ class BaseFrameManager(object):
         for col_idx in range(n_block_columns):
             old_partitions[col_idx] = np.array(
                 [
-                    part.split(axis, is_transposed, splits)
+                    part.split(axis, is_transposed, splits[col_idx])
                     if row_idx not in on_indices
-                    else on_old_partitions[col_idx][row_idx]
+                    else on_old_partitions[row_idx][col_idx]
                     for row_idx, part in enumerate(transposed_partitions[col_idx])
                 ]
             )
             new_partitions.append(
-                [(-2, col_idx)] + [(i, col_idx) for i in range(n_block_columns)]
+                [(-2, col_idx)] + [(i, col_idx) for i in range(len(partitions))]
             )
+        import ray
+        for col, old_parts in old_partitions.items():
+            print(old_parts[1])
+        #     for row in old_parts:
+        #         for block in row:
+        #             if block is not None:
+        #                 block = ray.get(block.oid)
+        #                 if block is not None:
+        #                     print(block.shape)
+        #         print("AAAAAAAA")
+        #     print(col)
 
         def sort_func(df):
             sort_labels = [
@@ -1326,8 +1332,10 @@ class BaseFrameManager(object):
             df = df.sort_values(
                 sort_labels, axis=axis, ascending=ascending, na_position=na_position
             )
-            df = df.drop(sort_labels, axis=axis^1)
+            df = df.drop(sort_labels, axis=axis ^ 1)
             return df
+
+        sort_func = self._partition_class.preprocess_func(sort_func)
 
         return self._shuffle(
             axis^1, is_transposed, new_partitions, old_partitions, func=sort_func
@@ -1339,9 +1347,9 @@ class BaseFrameManager(object):
         is_transposed,
         new_partitions,
         old_partitions,
-        fill_value=np.NaN,
         empty_partitions=[],
         lengths=[],
+        fill_value=np.NaN,
         func=None,
         **kwargs
     ):

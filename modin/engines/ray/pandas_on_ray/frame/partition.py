@@ -10,6 +10,7 @@ from ray.worker import RayTaskError
 from modin.engines.base.frame.partition import BaseFramePartition
 from modin.data_management.utils import length_fn_pandas, width_fn_pandas
 from modin.engines.ray.utils import handle_ray_task_error
+from pandas.core.dtypes.common import is_list_like
 
 
 class PandasOnRayFramePartition(BaseFramePartition):
@@ -87,7 +88,7 @@ class PandasOnRayFramePartition(BaseFramePartition):
         """
         # Check to make sure that if the split is just the original partition.
         if (
-            len(splits) == 1
+            len(splits) == 1 and is_list_like(splits[0])
             and len(splits[0]) == (self.width() if axis else self.length())
             and all(i == splits[0][i] for i in range(len(splits[0])))
         ):
@@ -102,7 +103,7 @@ class PandasOnRayFramePartition(BaseFramePartition):
             ]
         else:
             new_parts = deploy_ray_split._remote(
-                args=[self.call_queue, self.oid, axis, splits, is_transposed],
+                args=[self.call_queue, self.oid, axis, is_transposed, *splits],
                 num_return_vals=3 + len(splits),
             )
 
@@ -116,7 +117,7 @@ class PandasOnRayFramePartition(BaseFramePartition):
             return [PandasOnRayFramePartition(new_part) for new_part in new_parts]
 
     @classmethod
-    def shuffle(cls, axis, func, *partitions, length, width, **kwargs):
+    def shuffle(cls, axis, func, *partitions, length=None, width=None, **kwargs):
         """Takes the partitions combines them based on the indices.
 
         Args:
@@ -129,7 +130,7 @@ class PandasOnRayFramePartition(BaseFramePartition):
         Returns:
             A `BaseFramePartition` object.
         """
-        fill_value = kwargs.pop("fill_value", np.NaN)
+        fill_value = kwargs.pop("_fill_value", np.NaN)
         call_queues = []
         part_oids = []
         for part in partitions:
@@ -140,7 +141,13 @@ class PandasOnRayFramePartition(BaseFramePartition):
                 part_oids.append(part)
                 call_queues.append(None)
         result, ray_length, ray_width = deploy_ray_shuffle.remote(
-            axis, func, kwargs, length if axis else width, call_queues, *part_oids
+            axis,
+            func,
+            kwargs,
+            length if axis else width,
+            fill_value,
+            call_queues,
+            *part_oids
         )
         length = length if func is None else PandasOnRayFramePartition(ray_length)
         width = width if func is None else PandasOnRayFramePartition(ray_width)
@@ -248,7 +255,7 @@ def deploy_ray_func(call_queue, partition):  # pragma: no cover
 
 @ray.remote
 def deploy_ray_split(
-    call_queue, partition, axis, splits, is_transposed
+    call_queue, partition, axis, is_transposed, *splits
 ):  # pragma: no cover
     def deserialize(obj):
         if isinstance(obj, ray.ObjectID):
@@ -317,10 +324,12 @@ def deploy_ray_shuffle(
             df_part = partition
 
         # Reset index and columns for consistent concat behavior.
-        df_part.columns = pandas.RangeIndex(len(df_part.columns))
-        df_part.index = pandas.RangeIndex(len(df_part))
+        if axis:
+            df_part.index = pandas.RangeIndex(len(df_part))
+        else:
+            df_part.columns = pandas.RangeIndex(len(df_part.columns))
         df_parts.append(df_part)
-    df = pandas.concat(df_parts, axis=axis, ignore_index=True)
+    df = pandas.concat(df_parts, axis=axis)  # , ignore_index=True)
 
     # Apply post-shuffle function.
     if shuffle_func is not None:

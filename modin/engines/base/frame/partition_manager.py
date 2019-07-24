@@ -1295,25 +1295,35 @@ class BaseFrameManager(object):
         #     if len(np.array(old_partitions).shape) < 2:
         #         on_old_partitions[key] = [old_partitions]
 
+        import ray
         new_partitions = []
         old_partitions = {-2: np.array(on_partitions)}
-        transposed_partitions = partitions.T
+        transposed_partitions = partitions
         n_block_columns = len(transposed_partitions)
         for col_idx in range(n_block_columns):
-            old_partitions[col_idx] = np.array(
-                [
-                    part.split(axis, is_transposed, splits[col_idx])
+            old_partitions[col_idx] = [
+                    part.split(axis, is_transposed, splits[row_idx])
                     if row_idx not in on_indices
-                    else on_old_partitions[row_idx][col_idx]
+                    else on_old_partitions[row_idx][row_idx]
                     for row_idx, part in enumerate(transposed_partitions[col_idx])
                 ]
+            # old_partitions[col_idx] = []
+            # for row_idx, part in enumerate(transposed_partitions[col_idx]):
+            #     if row_idx not in on_indices:
+            #         print("AAAAAAAAAAAA")
+            #         to_append = part.split(axis, is_transposed, splits[col_idx])
+            #     else:
+            #         print("BBBBBBBBBBBB")
+            #         to_append = on_old_partitions[row_idx][col_idx]
+            #     # print(row_idx not in on_indices)
+            #     # print(ray.get([block.oid for block in to_append]))
+            #     old_partitions[col_idx].append(to_append)
+            new_partitions.extend(
+                [[(-2, col_idx), (i, col_idx)] for i in range(len(partitions))]
             )
-            new_partitions.append(
-                [(-2, col_idx)] + [(i, col_idx) for i in range(len(partitions))]
-            )
-        import ray
-        for col, old_parts in old_partitions.items():
-            print(old_parts[1])
+        # print(on_indices)
+        # print("**********")
+        # for col, old_parts in old_partitions.items():
         #     for row in old_parts:
         #         for block in row:
         #             if block is not None:
@@ -1322,6 +1332,7 @@ class BaseFrameManager(object):
         #                     print(block.shape)
         #         print("AAAAAAAA")
         #     print(col)
+        # print(new_partitions)
 
         def sort_func(df):
             sort_labels = [
@@ -1402,7 +1413,7 @@ class BaseFrameManager(object):
                     continue
                 # Get the partition splits needed for the block.
                 block_parts = [
-                    old_partitions[idx][row_idx, split_idx]
+                    old_partitions[idx][row_idx][split_idx]
                     if idx != -1
                     else empty_partitions[split_idx]
                     for idx, split_idx in new_partitions[col_idx]

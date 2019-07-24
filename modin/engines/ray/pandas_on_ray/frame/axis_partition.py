@@ -137,12 +137,15 @@ class PandasOnRayFrameAxisPartition(PandasFrameAxisPartition):
             )
             splits.append(on_partitions_and_split[n_bins:])
 
+        # for split in splits:
+        #     print([len(dist) for dist in ray.get(split)])
+
         # Send on partitions to remaining actors to get the splits and splits for old on partitions.
         on_old_partitions = {
             row_idx: [
                 [cls.partition_type(oid)
                 for oid in sort_split_actors[row_idx][col_idx].split_partitions._remote(
-                    args=[*splits], num_return_vals=max(2, len(splits))
+                    args=[*splits[col_idx]], num_return_vals=max(2, len(splits[col_idx]))
                 )]
                 for col_idx in range(on_parts_columns)
             ]

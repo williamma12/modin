@@ -118,7 +118,7 @@ class PandasOnRayFrameAxisPartition(PandasFrameAxisPartition):
         # Merge on parts and, if needed, bin_parts to line up with the cls.axis.
         if len(bin_boundaries) > 0:
             bins = concat_partitions_and_compute_splits.remote(
-                cls.axis^1, None, None, *bin_parts
+                cls.axis, None, None, *bin_parts
             )
         n_bins = (
             sum([len(internal_index) for internal_index in bin_boundaries.values()]) + 1
@@ -132,10 +132,15 @@ class PandasOnRayFrameAxisPartition(PandasFrameAxisPartition):
                 [cls.axis, na_position, bins, *on_parts[:, col_idx]],
                 num_return_vals=2*n_bins,
             )
-            on_partitions.append(
-                [cls.partition_type(part) for part in on_partitions_and_split[:n_bins]]
-            )
+            on_partitions.append(on_partitions_and_split[:n_bins])
             splits.append(on_partitions_and_split[n_bins:])
+
+        # Append the on partitions here to avoid doing it multiple times when shuffling.
+        if n_bins > 1:
+            on_partitions = np.array(on_partitions)
+            on_partitions = [cls.partition_type(concat_partitions_and_compute_splits.remote(cls.axis, None, None, *on_partitions[:, col])) for col in range(n_bins)]
+        else:
+            on_partitions = [cls.partition_type(on_partitions[0][0])]
 
         # for split in splits:
         #     print([len(dist) for dist in ray.get(split)])
@@ -297,6 +302,10 @@ def concat_partitions_and_compute_splits(
         One dataframe that is partitions concated on axis.
     """
     result = pandas.concat(partitions, axis=axis)
+    if axis == 0:
+        result = result.reset_index(drop=True)
+    else:
+        result.columns = pandas.RangeIndex(len(result.columns))
     if bins is None:
         return result
     elif len(bins) == 0:

@@ -117,15 +117,17 @@ class PandasOnRayFramePartition(BaseFramePartition):
             return [PandasOnRayFramePartition(new_part) for new_part in new_parts]
 
     @classmethod
-    def shuffle(cls, axis, func, *partitions, length=None, width=None, **kwargs):
+    def shuffle(cls, axis, func, *partitions, other_partition=None, length=None, width=None, **kwargs):
         """Takes the partitions combines them based on the indices.
 
         Args:
             axis: Axis to combine the partitions by.
             func: Function to apply after creating the new partition.
+            *partitions: List of partitions to combine.
+            other_partition: Other partition to append to each partition
+            along the other axis.
             length: Length of the resulting partition.
             width: Width of the resulting partition.
-            *partitions: List of partitions to combine.
 
         Returns:
             A `BaseFramePartition` object.
@@ -146,6 +148,7 @@ class PandasOnRayFramePartition(BaseFramePartition):
             kwargs,
             length if axis else width,
             fill_value,
+            other_partition.oid if other_partition is not None else None,
             call_queues,
             *part_oids
         )
@@ -284,7 +287,7 @@ def deploy_ray_split(
 
 @ray.remote(num_return_vals=3)
 def deploy_ray_shuffle(
-    axis, shuffle_func, kwargs, length, fill_value, call_queues, *partitions
+    axis, shuffle_func, kwargs, length, fill_value, other_partition, call_queues, *partitions
 ):  # pragma: no cover
     def deserialize(obj):
         if isinstance(obj, ray.ObjectID):
@@ -293,7 +296,7 @@ def deploy_ray_shuffle(
 
     # If no partitions, return empty dataframe.
     if len(partitions) == 0:
-        return pandas.DataFrame()
+        return pandas.DataFrame(), 0, 0
 
     # Create partition from partitions.
     df_parts = []
@@ -324,24 +327,27 @@ def deploy_ray_shuffle(
             df_part = partition
 
         # Reset index and columns for consistent concat behavior.
-        if axis:
-            df_part.index = pandas.RangeIndex(len(df_part))
-        else:
-            df_part.columns = pandas.RangeIndex(len(df_part.columns))
+        df_part.index = pandas.RangeIndex(len(df_part))
+        df_part.columns = pandas.RangeIndex(len(df_part.columns))
         df_parts.append(df_part)
+    if len(df_parts) == 0:
+        return pandas.DataFrame(), 0, 0
     df = pandas.concat(df_parts, axis=axis)  # , ignore_index=True)
+
+    # Make sure internal indices are correct.
+    if axis:
+        df.columns = pandas.RangeIndex(len(df.columns))
+    else:
+        df.index = pandas.RangeIndex(len(df))
+
+    if other_partition is not None:
+        df = pandas.concat([df, other_partition], axis=axis^1)
 
     # Apply post-shuffle function.
     if shuffle_func is not None:
         result = shuffle_func(df, **kwargs)
     else:
         result = df
-
-    # Make sure internal indices are correct.
-    if axis:
-        result.columns = pandas.RangeIndex(len(result.columns))
-    else:
-        result.index = pandas.RangeIndex(len(result))
 
     return (
         result,

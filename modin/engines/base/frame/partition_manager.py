@@ -1214,6 +1214,7 @@ class BaseFrameManager(object):
             fill_value=fill_value,
         )
 
+    @profile
     def sort(
         self,
         axis,
@@ -1289,27 +1290,6 @@ class BaseFrameManager(object):
             bins,
             bin_boundary_indices,
         )
-
-        # TODO: Find a better way to do this.
-        # for key, old_partitions in on_old_partitions.items():
-        #     if len(np.array(old_partitions).shape) < 2:
-        #         on_old_partitions[key] = [old_partitions]
-
-        # import ray
-        # for col, old_parts in on_old_partitions.items():
-        #     for row in old_parts:
-        #         for block in row:
-        #             if block is not None:
-        #                 block = ray.get(block.oid)
-        #                 if block is not None:
-        #                     print(block.shape)
-        #                     # if block.empty:
-        #                     #     print(block)
-        #                     # else:
-        #                     #     print(block.iloc[[0, -1], [0, -1]])
-        #         print("BBBBBBBB")
-        #     print(col)
-        # print("\n\n\n")
 
         other_partitions = np.array(on_partitions)
         old_partitions = {}

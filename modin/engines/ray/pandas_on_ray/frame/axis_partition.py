@@ -56,6 +56,7 @@ class PandasOnRayFrameAxisPartition(PandasFrameAxisPartition):
         )
 
     @classmethod
+    @profile
     def sort_split(
         cls,
         partitions,
@@ -91,8 +92,8 @@ class PandasOnRayFrameAxisPartition(PandasFrameAxisPartition):
             on_row_indices, on_row_ordering = on_indices[row_idx]
             for col_idx, block in enumerate(row_parts):
                 # Create and save actor
-                actor = SortSplitActor.remote(
-                    cls.axis, is_transposed, block.call_queue, block.oid, on_indices
+                actor = SortSplitActor._remote(
+                    [cls.axis, is_transposed, block.call_queue, block.oid, on_indices], num_cpus=1/(len(partitions)*len(row_parts))
                 )
                 sort_split_actors[row_idx].append(actor)
 

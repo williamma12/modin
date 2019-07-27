@@ -1214,7 +1214,6 @@ class BaseFrameManager(object):
             fill_value=fill_value,
         )
 
-    @profile
     def sort(
         self,
         axis,

@@ -56,7 +56,6 @@ class PandasOnRayFrameAxisPartition(PandasFrameAxisPartition):
         )
 
     @classmethod
-    @profile
     def sort_split(
         cls,
         partitions,

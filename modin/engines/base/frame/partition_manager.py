@@ -1243,6 +1243,7 @@ class BaseFrameManager(object):
         Returns:
              A new BaseFrameManager object, the type of object that called this.
         """
+        import ray
         # TODO(williamma12): remove this once the metadata class is able to determine is_transposed.
         new_self = self.transpose() if is_transposed else self
         block_widths = (
@@ -1294,12 +1295,25 @@ class BaseFrameManager(object):
         other_partitions = np.array(on_partitions)
         old_partitions = {}
         for col_idx in range(len(partitions.T)):
-            old_partitions[col_idx] = [
-                    part.split(axis, is_transposed, splits[col_idx])
-                    if row_idx not in on_indices
-                    else on_old_partitions[row_idx][col_idx]
-                    for row_idx, part in enumerate(partitions.T[col_idx])
-                ]
+            results = []
+            for row_idx, part in enumerate(partitions.T[col_idx]):
+                if row_idx not in on_indices:
+                    result = part.split(axis, is_transposed, splits[col_idx])
+                else:
+                    result = on_old_partitions[row_idx][col_idx]
+                results.append(result)
+            old_partitions[col_idx] = results
+            # old_partitions[col_idx] = [
+            #         part.split(axis, is_transposed, splits[col_idx])
+            #         if row_idx not in on_indices
+            #         else on_old_partitions[row_idx][col_idx]
+            #         for row_idx, part in enumerate(partitions.T[col_idx])
+            #     ]
+        # for row in old_partitions.values():
+        #     for blocks in row:
+        #         for block in blocks:
+        #             ray.get(block.oid)
+
         new_partitions = []
         for col_idx in range(len(partitions.T)):
             new_partitions.append([(i, col_idx) for i in range(len(splits[0]))])

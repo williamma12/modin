@@ -116,9 +116,9 @@ class PandasOnRayFrameAxisPartition(PandasFrameAxisPartition):
                     on_row_parts.append(on_partition)
             on_parts.append(on_row_parts)
 
-        for row in on_parts:
-            ray.get(row)
-        ray.get(bin_parts)
+        # for row in on_parts:
+        #     ray.get(row)
+        # ray.get(bin_parts)
 
         # Merge on parts to line up with the cls.axis.
         n_bins = (
@@ -136,10 +136,10 @@ class PandasOnRayFrameAxisPartition(PandasFrameAxisPartition):
             on_partitions.append(on_partitions_and_split[:n_bins])
             splits.append(on_partitions_and_split[n_bins:])
 
-        for row in on_partitions:
-            ray.get(row)
-        for split in splits:
-            ray.get(split)
+        # for row in on_partitions:
+        #     ray.get(row)
+        # for split in splits:
+        #     ray.get(split)
 
         # Append the on partitions here to avoid doing it multiple times when shuffling.
         if n_bins > 1:
@@ -167,9 +167,10 @@ class PandasOnRayFrameAxisPartition(PandasFrameAxisPartition):
             for row_idx in sort_split_actors.keys()
         }
 
-        for row in on_old_partitions.values():
-            for blocks in row:
-                ray.get([block.oid for block in blocks])
+        # for row in on_old_partitions.values():
+        #     for blocks in row:
+        #         for block in blocks:
+        #             ray.get(block.oid)
 
         return bins, splits, on_old_partitions, on_partitions
 
@@ -286,10 +287,12 @@ class SortSplitActor(object):  # pragma: no cover
             return on_partition, bins
 
     def split_partitions(self, *splits):
+        import time
+        start = time.time()
         if len(splits) == 1:
-            return self.partition, None
+            result = self.partition.reindex(splits[0], axis=self.axis), None
         else:
-            return [
+            result = [
                 pandas.DataFrame()
                 if len(index) == 0
                 else self.partition.iloc[:, index]
@@ -297,6 +300,8 @@ class SortSplitActor(object):  # pragma: no cover
                 else self.partition.iloc[index]
                 for index in splits
             ]
+        # print(time.time() - start)
+        return result
 
 
 @ray.remote

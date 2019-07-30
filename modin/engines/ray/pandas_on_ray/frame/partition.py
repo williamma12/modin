@@ -341,6 +341,10 @@ def deploy_ray_shuffle(
         df.index = pandas.RangeIndex(len(df))
 
     if other_partition is not None:
+        if axis:
+            other_partition.columns = pandas.RangeIndex(len(other_partition.columns))
+        else:
+            other_partition.index = pandas.RangeIndex(len(other_partition))
         df = pandas.concat([df, other_partition], axis=axis^1)
 
     # Apply post-shuffle function.

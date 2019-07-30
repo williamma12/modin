@@ -879,7 +879,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         ascending = kwargs.get("ascending", True)
         na_position = kwargs.get("na_position", "first")
         labels = self.index if axis else self.columns
-        on = labels.get_indexer(by)
+        on = list(labels.get_indexer(by))
 
         new_data = self.data.sort(axis, self._is_transposed, on, ascending, na_position)
         return self.__constructor__(

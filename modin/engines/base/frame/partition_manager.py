@@ -1214,7 +1214,6 @@ class BaseFrameManager(object):
             fill_value=fill_value,
         )
 
-    # @profile
     def sort(
         self,
         axis,
@@ -1267,14 +1266,14 @@ class BaseFrameManager(object):
         on_indices = {}
         for i, on_index in enumerate(on):
             partition_index, internal_index = self._get_blocks_containing_index(
-                axis, on
+                axis, on_index
             )
             if partition_index in on_indices:
                 entry = on_indices[partition_index]
                 entry[0].append(internal_index)
                 entry[1].append(i)
             else:
-                on_indices[partition_index] = (internal_index, [i])
+                on_indices[partition_index] = ([internal_index], [i])
 
         # Create partitions dictionary of row index and row values. If axis is 1,
         # then we want to calculate the splits for each row.
@@ -1303,16 +1302,6 @@ class BaseFrameManager(object):
                     result = on_old_partitions[row_idx][col_idx]
                 results.append(result)
             old_partitions[col_idx] = results
-            # old_partitions[col_idx] = [
-            #         part.split(axis, is_transposed, splits[col_idx])
-            #         if row_idx not in on_indices
-            #         else on_old_partitions[row_idx][col_idx]
-            #         for row_idx, part in enumerate(partitions.T[col_idx])
-            #     ]
-        # for row in old_partitions.values():
-        #     for blocks in row:
-        #         for block in blocks:
-        #             ray.get(block.oid)
 
         new_partitions = []
         for col_idx in range(len(partitions.T)):

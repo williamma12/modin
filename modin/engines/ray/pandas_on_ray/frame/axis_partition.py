@@ -56,7 +56,6 @@ class PandasOnRayFrameAxisPartition(PandasFrameAxisPartition):
         )
 
     @classmethod
-    # @profile
     def sort_split(
         cls,
         partitions,
@@ -116,11 +115,7 @@ class PandasOnRayFrameAxisPartition(PandasFrameAxisPartition):
                     on_row_parts.append(on_partition)
             on_parts.append(on_row_parts)
 
-        # for row in on_parts:
-        #     ray.get(row)
-        # ray.get(bin_parts)
-
-        # Merge on parts to line up with the cls.axis.
+        # Merge on parts to line up with the axis.
         n_bins = (
             sum([len(internal_index) for internal_index in bin_boundaries.values()]) + 1
         )
@@ -130,16 +125,11 @@ class PandasOnRayFrameAxisPartition(PandasFrameAxisPartition):
         _, on_parts_columns = on_parts.shape
         for col_idx in range(on_parts_columns):
             on_partitions_and_split = concat_partitions_and_compute_splits._remote(
-                [cls.axis, na_position, bin_parts, *on_parts[:, col_idx]],
+                [cls.axis^1, na_position, bin_parts, *on_parts[:, col_idx]],
                 num_return_vals=2*n_bins,
             )
             on_partitions.append(on_partitions_and_split[:n_bins])
             splits.append(on_partitions_and_split[n_bins:])
-
-        # for row in on_partitions:
-        #     ray.get(row)
-        # for split in splits:
-        #     ray.get(split)
 
         # Append the on partitions here to avoid doing it multiple times when shuffling.
         if n_bins > 1:
@@ -166,11 +156,6 @@ class PandasOnRayFrameAxisPartition(PandasFrameAxisPartition):
             ]
             for row_idx in sort_split_actors.keys()
         }
-
-        # for row in on_old_partitions.values():
-        #     for blocks in row:
-        #         for block in blocks:
-        #             ray.get(block.oid)
 
         return bins, splits, on_old_partitions, on_partitions
 
@@ -275,7 +260,7 @@ class SortSplitActor(object):  # pragma: no cover
         )
 
         # Get bin boundaries, if necessary.
-        if len(bin_boundaries) == 0:
+        if len(bin_boundaries) == 0 or not 0 in on_orders:
             return on_partition
         else:
             # TODO: if bin val is none, pick new one.
@@ -287,12 +272,13 @@ class SortSplitActor(object):  # pragma: no cover
             return on_partition, bins
 
     def split_partitions(self, *splits):
-        import time
-        start = time.time()
         if len(splits) == 1:
-            result = self.partition.reindex(splits[0], axis=self.axis), None
+            if len(splits[0]) == self.partition.shape[self.axis]:
+                return self.partition.reindex(splits[0], axis=self.axis), None
+            else:
+                return self.partition, None
         else:
-            result = [
+            return [
                 pandas.DataFrame()
                 if len(index) == 0
                 else self.partition.iloc[:, index]
@@ -300,8 +286,6 @@ class SortSplitActor(object):  # pragma: no cover
                 else self.partition.iloc[index]
                 for index in splits
             ]
-        # print(time.time() - start)
-        return result
 
 
 @ray.remote
@@ -319,79 +303,32 @@ def concat_partitions_and_compute_splits(
         One dataframe that is partitions concated on axis.
     """
     result = pandas.concat(partitions, axis=axis)
-    if axis == 0:
+    axis = axis^1 if bins is None else axis
+    if axis:
         result = result.reset_index(drop=True)
     else:
         result.columns = pandas.RangeIndex(len(result.columns))
+
     if bins is None:
         return result
     elif len(bins) == 0:
         return result, list()
     else:
-        df = result if axis else result.T
-        df = df.loc["__sort_0__"]
+        # df = result if axis else result.T
+        df = result.T if axis else result
+        sort_on = df.loc["__sort_0__"]
 
         bins = np.sort(np.concatenate(ray.get(bins)))
         result = []
         splits = []
         if na_position is "first":
-            array = df.fillna(df.min()).values
+            array = sort_on.fillna(sort_on.min()).values
         else:
-            array = df.fillna(df.max()).values
+            array = sort_on.fillna(sort_on.max()).values
         bin_idx = np.searchsorted(bins, array)
         for i in range(len(bins)+1):
-            # if i == len(bins) - 1:
-            #     indices = np.argwhere((bin_idx == i) | (bin_idx == i+1)).flatten()
-            # else:
-            #     indices = np.argwhere(bin_idx == i).flatten()
             indices = np.argwhere(bin_idx == i).flatten()
             splits.append(indices)
-            result.append(df[indices] if axis else df[indices].T)
+            # result.append(df[indices] if axis else df[indices].T)
+            result.append(df[indices].T if axis else df[indices])
         return result + splits
-
-        # bins = np.concatenate(ray.get(bins))
-        # df = result if axis else result.T
-        # array = df.loc["__sort_0__"]
-        # result = []
-        # splits = []
-        # na_first = na_position is "first"
-        # indices = np.arange(len(array))
-        # if hasattr(bins[0], "__sub__"):
-        #     bins = np.insert(bins, 0, df.loc["__sort_0__"].min())
-        #     bins = np.append(bins, df.loc["__sort_0__"].max())
-        #     bins = pandas.Series(np.sort(bins))
-        #     result = []
-        #     na_first = na_position is "first"
-        #     indices = np.arange(len(array))
-        #     splits = pandas.cut(df.loc["__sort_0__"], bins, right=True, labels=False, include_lowest=True)
-        #     if na_position is "first":
-        #         splits.fillna(0)
-        #     else:
-        #         splits = splits.fillna(len(bins.index)-1)
-        #     result_splits = []
-        #     result_parts = []
-        #     for i in range(len(bins.index)-1):
-        #         indices = splits.index[splits == i]
-        #         result_splits.append(list(indices))
-        #         result_parts.append(df[indices] if axis else df[indices].T)
-        #     return result_parts + result_splits
-        # else:
-        #     bins = np.sort(bins)
-        #     indices = np.arange(len(array))
-        #     for bin_val in bins:
-        #         if na_first:
-        #             mask = (array <= bin_val) | (
-        #                 array == np.NaN
-        #             ) | (array is None)
-        #             na_first = False
-        #         else:
-        #             mask = array <= bin_val
-        #         index = indices[np.argwhere(mask).flatten()]
-        #         splits.append(index)
-        #         result.append(df[index] if axis else df[index].T)
-        #         array = array[~mask]
-        #         indices = indices[~mask]
-        #         df = df.drop(index, axis=1)
-        #     splits.append(indices)
-        #     result.append(df if axis else df.T)
-        #     return result + splits

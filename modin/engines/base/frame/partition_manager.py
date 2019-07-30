@@ -1209,11 +1209,12 @@ class BaseFrameManager(object):
             is_transposed,
             new_partitions,
             old_partitions,
-            empty_partitions,
-            lengths,
+            empty_partitions=empty_partitions,
+            lengths=lengths,
             fill_value=fill_value,
         )
 
+    # @profile
     def sort(
         self,
         axis,
@@ -1388,7 +1389,7 @@ class BaseFrameManager(object):
                 other_partition = None
                 block_parts = []
                 for idx, split_idx in new_partitions[col_idx]:
-                    if other_partitions is not None:
+                    if len(other_partitions) > 0:
                         other_partition = other_partitions[col_idx]
                     if idx != -1:
                         block_parts.append(old_partitions[idx][row_idx][split_idx])

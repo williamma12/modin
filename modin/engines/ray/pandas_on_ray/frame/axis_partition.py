@@ -314,7 +314,6 @@ def concat_partitions_and_compute_splits(
     elif len(bins) == 0:
         return result, list()
     else:
-        # df = result if axis else result.T
         df = result.T if axis else result
         sort_on = df.loc["__sort_0__"]
 
@@ -329,6 +328,5 @@ def concat_partitions_and_compute_splits(
         for i in range(len(bins)+1):
             indices = np.argwhere(bin_idx == i).flatten()
             splits.append(indices)
-            # result.append(df[indices] if axis else df[indices].T)
             result.append(df[indices].T if axis else df[indices])
         return result + splits

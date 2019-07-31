@@ -345,7 +345,7 @@ def deploy_ray_shuffle(
             other_partition.columns = pandas.RangeIndex(len(other_partition.columns))
         else:
             other_partition.index = pandas.RangeIndex(len(other_partition))
-        df = pandas.concat([df, other_partition], axis=axis^1)
+        df = pandas.concat([df]+[other_partition], axis=axis^1)
 
     # Apply post-shuffle function.
     if shuffle_func is not None:

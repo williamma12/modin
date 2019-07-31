@@ -886,6 +886,35 @@ class PandasQueryCompiler(BaseQueryCompiler):
             new_data, self.index.copy(), self.columns.copy(), self._dtype_cache
         )
 
+    def sort_merge_join(self, right_query_compiler, left_on, right_on, **kwargs):
+        """Runs sort merge join on right_query_compiler and self.
+
+        Args:
+            left_query_compiler: Other query compiler to join with.
+            left_on: List of column(s) on the left to join on.
+            right_on: List of column(s) on the right to join on.
+
+        Returns:
+            A new QueryCompiler joined on the left_on and right_on columns.
+        """
+        how = kwargs.get("how", "inner")
+        suffixes = kwargs.get("suffixes", ('_x', '_y'))
+
+        if self.data.sorted is None or self.data.sorted != left_on[0]:
+            labels = self.index if axis else self.columns
+            left_on = list(labels.get_indexer(left_on))
+            left_data = self.data.sort(0, self._is_transposed, left_on)
+        else:
+            left_data = self.data
+
+        def sort_merge_join_builder(df, other):
+            return pandas.merge(other, df, left_on=left_on, right_on=right_on, **kwargs)
+
+        # TODO: Check if right is sorted identically to the left.
+        labels = right_query_compiler.index if axis else right_query_compiler.columns
+        right_on = list(labels.get_indexer(right_on))
+        right_data = right_query_compiler.data(0, right_query_compiler._is_transposed, right_on, bins=left_data.bins, n_bins=left_data.n_bins, other_on_partitions=left_data.on_partitions)
+
     # END Reindex/reset_index
 
     # Transpose

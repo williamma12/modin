@@ -63,6 +63,7 @@ class PandasOnRayFrameAxisPartition(PandasFrameAxisPartition):
         on_indices,
         na_position,
         bins=[],
+        n_bins=0,
         bin_boundaries=[],
     ):
         """Split partition along axis given list of resulting index groups (splits).
@@ -76,6 +77,9 @@ class PandasOnRayFrameAxisPartition(PandasFrameAxisPartition):
             ([internal_indices], [on_orders]).
             na_position: "first" puts NaNs first, "last" puts NaNs last.
             bins: Dataframe containing bins to sort the values by.
+            n_bins: Number of bins there are. We cannot simply check the length of the 
+            bins argument because they are in ray and there is a many-to-one 
+            relationship between bins and object IDs.
             bin_boundaries: Dictionary of (partitions_column_index, internal_index) of 
             the bin boundary values.
 
@@ -85,7 +89,7 @@ class PandasOnRayFrameAxisPartition(PandasFrameAxisPartition):
         # Create actors and get the on partitions and bins, if needed.
         sort_split_actors = defaultdict(list)
         on_parts = []
-        bin_parts = []
+        bin_parts = [] if n_bins == 0 else bins
         for row_idx, row_parts in partitions.items():
             on_row_parts = []
             on_row_indices, on_row_ordering = on_indices[row_idx]
@@ -116,9 +120,6 @@ class PandasOnRayFrameAxisPartition(PandasFrameAxisPartition):
             on_parts.append(on_row_parts)
 
         # Merge on parts to line up with the axis.
-        n_bins = (
-            sum([len(internal_index) for internal_index in bin_boundaries.values()]) + 1
-        )
         on_partitions = []
         splits = []
         on_parts = np.array(on_parts)
@@ -157,7 +158,9 @@ class PandasOnRayFrameAxisPartition(PandasFrameAxisPartition):
             for row_idx in sort_split_actors.keys()
         }
 
-        return bins, splits, on_old_partitions, on_partitions
+        bins = [cls.partition_type(bin_part) for bin_part in bin_parts]
+
+        return bin_parts, splits, on_old_partitions, on_partitions
 
     def _wrap_partitions(self, partitions):
         return [
@@ -314,7 +317,6 @@ def concat_partitions_and_compute_splits(
     elif len(bins) == 0:
         return result, list()
     else:
-        # df = result if axis else result.T
         df = result.T if axis else result
         sort_on = df.loc["__sort_0__"]
 
@@ -329,6 +331,5 @@ def concat_partitions_and_compute_splits(
         for i in range(len(bins)+1):
             indices = np.argwhere(bin_idx == i).flatten()
             splits.append(indices)
-            # result.append(df[indices] if axis else df[indices].T)
             result.append(df[indices].T if axis else df[indices])
         return result + splits

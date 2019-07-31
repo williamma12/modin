@@ -1219,9 +1219,11 @@ class BaseFrameManager(object):
         axis,
         is_transposed,
         on,
-        ascending,
-        na_position,
+        ascending=True,
+        na_position="first",
         bins=[],
+        n_bins=0,
+        other_on_partitions=[],
         func=None,
         **kwargs
     ):
@@ -1236,13 +1238,13 @@ class BaseFrameManager(object):
             ascending: True if ascending values.
             na_position: "first" puts NaNs first, "last" puts NaNs last.
             bins: Bins that the partitions should follow.
+            n_bins: Number of bins there are.
             func: Function to apply after sorting.
             **kwargs: Kwargs for the function that gets applied after sorting.
 
         Returns:
              A new BaseFrameManager object, the type of object that called this.
         """
-        import ray
         # TODO(williamma12): remove this once the metadata class is able to determine is_transposed.
         new_self = self.transpose() if is_transposed else self
         block_widths = (
@@ -1252,7 +1254,7 @@ class BaseFrameManager(object):
             new_self.block_widths if is_transposed else new_self.block_lengths
         )
 
-        if len(bins) == 0:
+        if n_bins == 0:
             # Get bins to shuffle the partitions into
             n_bins = len(block_widths if axis else block_lengths)
             length = sum(block_widths if axis else block_lengths)
@@ -1287,11 +1289,20 @@ class BaseFrameManager(object):
             is_transposed,
             on_indices,
             na_position,
-            bins,
-            bin_boundary_indices,
+            bins=bins,
+            n_bins=n_bins,
+            bin_boundaries=bin_boundary_indices,
         )
 
-        other_partitions = np.array(on_partitions)
+        # Repeat on partitions for number of rows to be repeated times.
+        # on_partitions = np.array(on_partitions)
+        other_partitions = []
+        for row_idx in range(len(partitions)):
+            for col_idx in range(len(partitions).T):
+                #TODO: SET UP OTHER PARTITIONS TO INCLUDE THE OTHER PARTITIONS AND OTHER ON PARTITIONS
+                
+
+        # Calculated the splits of the old partitions.
         old_partitions = {}
         for col_idx in range(len(partitions.T)):
             results = []
@@ -1317,9 +1328,17 @@ class BaseFrameManager(object):
                 sort_labels, axis=axis, ascending=ascending, na_position=na_position
             )
             df = df.drop(sort_labels, axis=axis^1)
+            if func is not None:
+                df = func(df, other)
             return df
 
         sort_func = self._partition_class.preprocess_func(sort_func)
+
+        # Save column sorted on and splits in object.
+        self.sorted = on[0]
+        self.bins = bins
+        self.n_bins = n_bins
+        self.on_partitions = on_partitions
 
         return self._shuffle(
             axis, is_transposed, new_partitions, old_partitions, other_partitions=other_partitions, func=sort_func
@@ -1393,7 +1412,7 @@ class BaseFrameManager(object):
                 block_parts = []
                 for idx, split_idx in new_partitions[col_idx]:
                     if len(other_partitions) > 0:
-                        other_partition = other_partitions[col_idx]
+                        other_partition = other_partitions[row_idx][col_idx]
                     if idx != -1:
                         block_parts.append(old_partitions[idx][row_idx][split_idx])
                     else:

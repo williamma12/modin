@@ -102,6 +102,8 @@ class PandasOnRayFramePartition(BaseFramePartition):
                 )
             ]
         else:
+            if isinstance(splits[0], BaseFramePartition):
+                splits = [split.oid for split in splits]
             new_parts = deploy_ray_split._remote(
                 args=[self.call_queue, self.oid, axis, is_transposed, *splits],
                 num_return_vals=3 + len(splits),
@@ -117,12 +119,13 @@ class PandasOnRayFramePartition(BaseFramePartition):
             return [PandasOnRayFramePartition(new_part) for new_part in new_parts]
 
     @classmethod
-    def shuffle(cls, axis, func, *partitions, other_partition=None, length=None, width=None, **kwargs):
+    def shuffle(cls, axis, func, n_other_partitions, *partitions, length=None, width=None, fill_value=np.nan):
         """Takes the partitions combines them based on the indices.
 
         Args:
             axis: Axis to combine the partitions by.
             func: Function to apply after creating the new partition.
+            n_other_partitions: Number of other partitions in partitions list.
             *partitions: List of partitions to combine.
             other_partition: Other partition to append to each partition
             along the other axis.
@@ -132,7 +135,6 @@ class PandasOnRayFramePartition(BaseFramePartition):
         Returns:
             A `BaseFramePartition` object.
         """
-        fill_value = kwargs.pop("_fill_value", np.NaN)
         call_queues = []
         part_oids = []
         for part in partitions:
@@ -145,10 +147,9 @@ class PandasOnRayFramePartition(BaseFramePartition):
         result, ray_length, ray_width = deploy_ray_shuffle.remote(
             axis,
             func,
-            kwargs,
             length if axis else width,
             fill_value,
-            other_partition.oid if other_partition is not None else None,
+            n_other_partitions,
             call_queues,
             *part_oids
         )
@@ -287,7 +288,7 @@ def deploy_ray_split(
 
 @ray.remote(num_return_vals=3)
 def deploy_ray_shuffle(
-    axis, shuffle_func, kwargs, length, fill_value, other_partition, call_queues, *partitions
+    axis, shuffle_func, length, fill_value, n_other_partitions, call_queues, *partitions
 ):  # pragma: no cover
     def deserialize(obj):
         if isinstance(obj, ray.ObjectID):
@@ -297,6 +298,10 @@ def deploy_ray_shuffle(
     # If no partitions, return empty dataframe.
     if len(partitions) == 0:
         return pandas.DataFrame(), 0, 0
+
+    # Separate other_partitions and partitions.
+    other_partitions = partitions[:n_other_partitions]
+    partitions = partitions[n_other_partitions:]
 
     # Create partition from partitions.
     df_parts = []
@@ -340,16 +345,18 @@ def deploy_ray_shuffle(
     else:
         df.index = pandas.RangeIndex(len(df))
 
-    if other_partition is not None:
-        if axis:
-            other_partition.columns = pandas.RangeIndex(len(other_partition.columns))
-        else:
-            other_partition.index = pandas.RangeIndex(len(other_partition))
-        df = pandas.concat([df]+[other_partition], axis=axis^1)
+    if n_other_partitions > 0:
+        for other_part in other_partitions:
+            if axis:
+                other_part.columns = pandas.RangeIndex(len(other_part.columns))
+            else:
+                other_part.index = pandas.RangeIndex(len(other_part))
+        other_partition = pandas.concat(other_partitions[1:], axis=axis^1) if len(other_partitions) > 1 else None
+        df = pandas.concat([df, other_partitions[0]], axis=axis^1)
 
     # Apply post-shuffle function.
     if shuffle_func is not None:
-        result = shuffle_func(df, **kwargs)
+        result = shuffle_func(df, other=other_partition)
     else:
         result = df
 

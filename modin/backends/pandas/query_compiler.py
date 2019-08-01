@@ -477,7 +477,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         df = self.data.to_pandas(is_transposed=self._is_transposed)
         if df.empty:
             if len(self.columns) != 0:
-                df = pandas.DataFrame(columns=self.columns).astype(self.dtypes)
+                df = pandas.DataFrame(columns=self.columns)#.astype(self.dtypes)
             else:
                 df = pandas.DataFrame(columns=self.columns, index=self.index)
         else:
@@ -894,26 +894,45 @@ class PandasQueryCompiler(BaseQueryCompiler):
             left_on: List of column(s) on the left to join on.
             right_on: List of column(s) on the right to join on.
 
+        NOTE: ASSUME <32 columns and the two dataframes have the same of block shape.
+        NOTE: Assume no overlapping column names and that the left_on and right_on
+        columns will both be in resulting dataframe.
+
         Returns:
             A new QueryCompiler joined on the left_on and right_on columns.
         """
         how = kwargs.get("how", "inner")
-        suffixes = kwargs.get("suffixes", ('_x', '_y'))
 
-        if self.data.sorted is None or self.data.sorted != left_on[0]:
-            labels = self.index if axis else self.columns
-            left_on = list(labels.get_indexer(left_on))
-            left_data = self.data.sort(0, self._is_transposed, left_on)
-        else:
+        if hasattr(self.data, "sorted") and self.data.sorted == left_on[0]:
             left_data = self.data
+        else:
+            left_on = list(self.columns.get_indexer(left_on))
+            left_data = self.data.sort(0, self._is_transposed, left_on)
 
-        def sort_merge_join_builder(df, other):
-            return pandas.merge(other, df, left_on=left_on, right_on=right_on, **kwargs)
+        def sort_merge_join_builder(right_df, left_df):
+            on_labels = [
+                label
+                for label in right_df.columns
+                if isinstance(label, str) and "__sort_" in label
+            ]
+
+            left_df.columns = ["left_{}".format(col) if col not in on_labels else col for col in left_df.columns]
+            right_df.columns = ["right_{}".format(col) if col not in on_labels else col for col in right_df.columns]
+
+            result = pandas.merge(left_df, right_df, left_on=on_labels, right_on=on_labels, **kwargs)
+            result = result.drop(on_labels, axis=1)
+            result.columns = pandas.RangeIndex(len(result.columns))
+            return result
 
         # TODO: Check if right is sorted identically to the left.
-        labels = right_query_compiler.index if axis else right_query_compiler.columns
-        right_on = list(labels.get_indexer(right_on))
-        right_data = right_query_compiler.data(0, right_query_compiler._is_transposed, right_on, bins=left_data.bins, n_bins=left_data.n_bins, other_on_partitions=left_data.on_partitions)
+        right_on = list(right_query_compiler.columns.get_indexer(right_on))
+        new_data = right_query_compiler.data.sort(0, right_query_compiler._is_transposed, right_on, bins=left_data.bins, n_bins=left_data.n_bins, other_on_partitions=left_data.on_partitions, other_partitions=left_data.partitions, func=sort_merge_join_builder)
+
+        # Create columns and get index.
+        new_columns = pandas.Index(np.concatenate([self.columns.values, right_query_compiler.columns.values]))
+        new_index = pandas.RangeIndex(sum(new_data.block_lengths))
+        new_dtypes = self.dtypes.append(right_query_compiler.dtypes)
+        return self.__constructor__(new_data, new_index, new_columns, new_dtypes)
 
     # END Reindex/reset_index
 

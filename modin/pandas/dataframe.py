@@ -1096,6 +1096,10 @@ class DataFrame(BasePandasDataset):
                 "can not merge DataFrame with instance of type "
                 "{}".format(type(right))
             )
+        if sort and left_on is not None and right_on is not None:
+            left_on = left_on if is_list_like(left_on) else [left_on]
+            right_on = right_on if is_list_like(right_on) else [right_on]
+            return DataFrame(query_compiler=self._query_compiler.sort_merge_join(right._query_compiler, left_on, right_on, suffixes=suffixes, indicator=indicator, validate=validate))
         if left_index is False or right_index is False:
             if isinstance(right, DataFrame):
                 right = right._query_compiler.to_pandas()

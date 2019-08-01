@@ -89,7 +89,7 @@ class PandasOnRayFrameAxisPartition(PandasFrameAxisPartition):
         # Create actors and get the on partitions and bins, if needed.
         sort_split_actors = defaultdict(list)
         on_parts = []
-        bin_parts = [] if n_bins == 0 else bins
+        bin_parts = [] if n_bins == 0 else [bin_part.oid for bin_part in bins]
         for row_idx, row_parts in partitions.items():
             on_row_parts = []
             on_row_indices, on_row_ordering = on_indices[row_idx]
@@ -114,7 +114,7 @@ class PandasOnRayFrameAxisPartition(PandasFrameAxisPartition):
                     bin_parts.append(bin_boundary)
                 else:
                     on_partition = actor.get_on_partitions_and_bins.remote(
-                        on_row_indices, on_row_ordering
+                        on_row_indices, on_row_ordering,
                     )
                     on_row_parts.append(on_partition)
             on_parts.append(on_row_parts)
@@ -138,7 +138,7 @@ class PandasOnRayFrameAxisPartition(PandasFrameAxisPartition):
             results = []
             for col in range(n_bins):
                 if len(on_partitions) > 1:
-                    result = concat_partitions_and_compute_splits.remote(cls.axis, None, None, *on_partitions[:, col])
+                    result = concat_partitions_and_compute_splits.remote(cls.axis, None, None, None, *on_partitions[:, col])
                 else:
                     result = np.squeeze(on_partitions[:, col])
                 results.append(cls.partition_type(result))
@@ -159,8 +159,9 @@ class PandasOnRayFrameAxisPartition(PandasFrameAxisPartition):
         }
 
         bins = [cls.partition_type(bin_part) for bin_part in bin_parts]
+        splits = [[cls.partition_type(split) for split in row_split] for row_split in splits]
 
-        return bin_parts, splits, on_old_partitions, on_partitions
+        return bins, splits, on_old_partitions, on_partitions
 
     def _wrap_partitions(self, partitions):
         return [

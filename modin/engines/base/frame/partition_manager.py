@@ -1418,7 +1418,7 @@ class BaseFrameManager(object):
                     continue
 
                 # Get the partition splits and other partitions.
-                other_parts = other_partitions[row_idx][col_idx] if len(other_partitions) > 0 else None
+                other_parts = other_partitions[row_idx][col_idx] if len(other_partitions) > 0 else []
                 block_parts = []
                 for idx, split_idx in new_partitions[col_idx]:
                     if idx != -1:

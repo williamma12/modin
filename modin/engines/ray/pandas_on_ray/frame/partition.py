@@ -119,7 +119,7 @@ class PandasOnRayFramePartition(BaseFramePartition):
             return [PandasOnRayFramePartition(new_part) for new_part in new_parts]
 
     @classmethod
-    def shuffle(cls, axis, func, n_other_partitions, *partitions, length=None, width=None, fill_value=np.nan):
+    def shuffle(cls, axis, func, on_partitions, partitions, other_on_partitions, other_partitions, length=None, width=None, fill_value=np.nan):
         """Takes the partitions combines them based on the indices.
 
         Args:
@@ -135,6 +135,15 @@ class PandasOnRayFramePartition(BaseFramePartition):
         Returns:
             A `BaseFramePartition` object.
         """
+        on_oids = []
+        for on_part in on_partitions:
+            on_oids.append(on_part.oid)
+        other_oids = []
+        for other_part in other_partitions:
+            other_oids.append(other_part.oid)
+        other_on_oids = []
+        for other_on_part in other_on_partitions:
+            other_on_oids.append(other_on_part.oid)
         call_queues = []
         part_oids = []
         for part in partitions:
@@ -149,8 +158,13 @@ class PandasOnRayFramePartition(BaseFramePartition):
             func,
             length if axis else width,
             fill_value,
-            n_other_partitions,
+            len(on_partitions),
+            len(other_on_partitions),
+            len(other_partitions),
             call_queues,
+            *on_oids,
+            *other_on_oids,
+            *other_oids,
             *part_oids
         )
         length = length if func is None else PandasOnRayFramePartition(ray_length)
@@ -278,7 +292,14 @@ def deploy_ray_split(
 
     # Orient and cut up partition.
     part = partition.T if is_transposed else partition
-    result = [part.iloc[:, index] if axis else part.iloc[index] for index in splits]
+
+    # TODO: Workaround until pandas 0.25
+    result = []
+    for index in splits:
+        if isinstance(index, np.ndarray):
+            index = index.tolist()
+        result.append(part.iloc[:, index] if axis else part.iloc[index])
+    # result = [part.iloc[:, index] if axis else part.iloc[index] for index in splits]
     return [
         partition,
         len(partition) if hasattr(partition, "__len__") else 0,
@@ -288,7 +309,7 @@ def deploy_ray_split(
 
 @ray.remote(num_return_vals=3)
 def deploy_ray_shuffle(
-    axis, shuffle_func, length, fill_value, n_other_partitions, call_queues, *partitions
+    axis, shuffle_func, length, fill_value, n_on_partitions, n_other_on_partitions, n_other_partitions, call_queues, *partitions
 ):  # pragma: no cover
     def deserialize(obj):
         if isinstance(obj, ray.ObjectID):
@@ -300,8 +321,10 @@ def deploy_ray_shuffle(
         return pandas.DataFrame(), 0, 0
 
     # Separate other_partitions and partitions.
-    other_partitions = partitions[:n_other_partitions]
-    partitions = partitions[n_other_partitions:]
+    on_partitions = partitions[:n_on_partitions]
+    other_on_partitions = partitions[n_on_partitions:n_on_partitions+n_other_on_partitions]
+    other_partitions = partitions[n_on_partitions+n_other_on_partitions:n_on_partitions+n_other_on_partitions+n_other_partitions]
+    partitions = partitions[n_on_partitions+n_other_on_partitions+n_other_partitions:]
 
     # Create partition from partitions.
     df_parts = []
@@ -335,9 +358,22 @@ def deploy_ray_shuffle(
         df_part.index = pandas.RangeIndex(len(df_part))
         df_part.columns = pandas.RangeIndex(len(df_part.columns))
         df_parts.append(df_part)
+
+    # Return if no parts to append.
     if len(df_parts) == 0:
         return pandas.DataFrame(), 0, 0
-    df = pandas.concat(df_parts, axis=axis)  # , ignore_index=True)
+
+    df = pandas.concat(df_parts, axis=axis)
+
+    # Add on partitions to append.
+    if n_on_partitions > 0:
+        for on_part in on_partitions:
+            if axis:
+                on_part.columns = pandas.RangeIndex(len(on_part.columns))
+            else:
+                on_part.index = pandas.RangeIndex(len(on_part))
+        on_part = pandas.concat(on_partitions, axis=axis)
+        df = pandas.concat([df, on_part], axis=axis^1)
 
     # Make sure internal indices are correct.
     if axis:
@@ -351,8 +387,20 @@ def deploy_ray_shuffle(
                 other_part.columns = pandas.RangeIndex(len(other_part.columns))
             else:
                 other_part.index = pandas.RangeIndex(len(other_part))
-        other_partition = pandas.concat(other_partitions[1:], axis=axis^1) if len(other_partitions) > 1 else None
-        df = pandas.concat([df, other_partitions[0]], axis=axis^1)
+        other_partition = pandas.concat(other_partitions, axis=axis)
+        for other_on_part in other_on_partitions:
+            if axis:
+                other_on_part.columns = pandas.RangeIndex(len(other_on_part.columns))
+            else:
+                other_on_part.index = pandas.RangeIndex(len(other_on_part))
+        other_on_part = pandas.concat(other_on_partitions, axis=axis)
+        if axis:
+            other_on_part.columns = pandas.RangeIndex(len(other_on_part.columns))
+        else:
+            other_on_part.index = pandas.RangeIndex(len(other_on_part))
+        other_partition = pandas.concat([other_partition, other_on_part], axis=axis^1)
+    else:
+        other_partition = None
 
     # Apply post-shuffle function.
     if shuffle_func is not None:

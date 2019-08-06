@@ -131,20 +131,16 @@ class PandasOnRayFrameAxisPartition(PandasFrameAxisPartition):
             )
             on_partitions.append(on_partitions_and_split[:n_bins])
             splits.append(on_partitions_and_split[n_bins:])
-
+        
         # Append the on partitions here to avoid doing it multiple times when shuffling.
         if n_bins > 1:
             on_partitions = np.array(on_partitions)
             results = []
             for col in range(n_bins):
-                if len(on_partitions) > 1:
-                    result = concat_partitions_and_compute_splits.remote(cls.axis, None, None, None, *on_partitions[:, col])
-                else:
-                    result = np.squeeze(on_partitions[:, col])
-                results.append(cls.partition_type(result))
+                results.append([cls.partition_type(part) for part in on_partitions[:, col]])
             on_partitions = results
         else:
-            on_partitions = [cls.partition_type(on_partitions[0][0])]
+            on_partitions = [[cls.partition_type(on_partitions[0][0])]]
 
         # Send on partitions to remaining actors to get the splits and splits for old on partitions.
         on_old_partitions = {
@@ -282,14 +278,25 @@ class SortSplitActor(object):  # pragma: no cover
             else:
                 return self.partition, None
         else:
-            return [
-                pandas.DataFrame()
-                if len(index) == 0
-                else self.partition.iloc[:, index]
-                if self.axis
-                else self.partition.iloc[index]
-                for index in splits
-            ]
+            # TODO: Workaround until pandas 0.25
+            result = []
+            for index in splits:
+                if len(index) == 0:
+                    result.append(pandas.DataFrame())
+                    continue
+                elif isinstance(index, np.ndarray):
+                    index = index.tolist()
+                result.append(self.partition.iloc[:, index] if self.axis else self.partition.iloc[index])
+
+            return result
+            # return [
+            #     pandas.DataFrame()
+            #     if len(index) == 0
+            #     else self.partition.iloc[:, index]
+            #     if self.axis
+            #     else self.partition.iloc[index]
+            #     for index in splits
+            # ]
 
 
 @ray.remote

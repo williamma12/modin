@@ -208,6 +208,9 @@ class PandasQueryCompiler(BaseQueryCompiler):
             query_compiler = self.drop(columns=nonnumeric)
         return result, query_compiler
 
+    def data_placement(self, axis, n_nodes=9999):
+        return self.data.ensure_actor_full_axis_partitions(axis, n_nodes)
+
     # END Internal methods
 
     # Metadata modification methods

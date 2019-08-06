@@ -1014,6 +1014,9 @@ class DataFrame(BasePandasDataset):
             other = other._to_pandas()
         return super(DataFrame, self).lt(other, axis=axis, level=level)
 
+    def data_placement(self, axis, n_nodes=9999):
+        return self._query_compiler.data_placement(axis, n_nodes)
+
     def melt(
         self,
         id_vars=None,

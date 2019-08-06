@@ -20,6 +20,9 @@ from modin.error_message import ErrorMessage
 from modin.engines.base.io import BaseIO
 from modin.data_management.utils import compute_chunksize, compute_lengths
 
+from modin.engines.ray.data_placement import get_available_actors
+
+
 PQ_INDEX_REGEX = re.compile("__index_level_\d+__")  # noqa W605
 S3_ADDRESS_REGEX = re.compile("s3://(.*?)/(.*)")
 
@@ -406,6 +409,8 @@ class RayIO(BaseIO):
                 # objects.
                 num_splits = 1
 
+            ind = 0
+            actors = get_available_actors(9999)
             while f.tell() < total_bytes:
                 start = f.tell()
                 f.seek(chunk_size, os.SEEK_CUR)
@@ -416,8 +421,10 @@ class RayIO(BaseIO):
                 #   `index_col` is specified. We compute the index below.
                 # - The nth object is the dtypes of the partition. We combine these to
                 #   form the final dtypes below.
-                partition_id = cls.read_csv_remote_task._remote(
+                # partition_id = cls.read_csv_remote_task._remote(
+                partition_df = actors[ind].run._remote(
                     args=(
+                        cls.read_csv_remote_task,
                         filepath,
                         num_splits,
                         start,
@@ -430,6 +437,8 @@ class RayIO(BaseIO):
                 partition_ids.append(partition_id[:-2])
                 index_ids.append(partition_id[-2])
                 dtypes_ids.append(partition_id[-1])
+
+                ind = (ind + 1) % len(actors)
 
         # Compute the index based on a sum of the lengths of each partition (by default)
         # or based on the column(s) that were requested.

@@ -16,6 +16,9 @@ from modin.data_management.utils import (
     compute_partition_shuffle,
 )
 
+import ray
+from modin.engines.ray.data_placement import get_available_actors
+
 
 class BaseFrameManager(object):
     """Abstract Class that manages a set of `BaseFramePartition` objects, and
@@ -61,25 +64,25 @@ class BaseFrameManager(object):
     _filtered_empties = False
 
     def _get_partitions(self):
-        if not self._filtered_empties or (
-            self._lengths_cache is not None and self._widths_cache is not None
-        ):
-            self._partitions_cache = np.array(
-                [
-                    row
-                    for row in [
-                        [
-                            self._partitions_cache[i][j]
-                            for j in range(len(self._partitions_cache[i]))
-                            if self.block_lengths[i] != 0 and self.block_widths[j] != 0
-                        ]
-                        for i in range(len(self._partitions_cache))
-                    ]
-                    if len(row)
-                ]
-            )
-            self._remove_empty_blocks()
-            self._filtered_empties = True
+        # if not self._filtered_empties or (
+        #     self._lengths_cache is not None and self._widths_cache is not None
+        # ):
+        #     self._partitions_cache = np.array(
+        #         [
+        #             row
+        #             for row in [
+        #                 [
+        #                     self._partitions_cache[i][j]
+        #                     for j in range(len(self._partitions_cache[i]))
+        #                     if self.block_lengths[i] != 0 and self.block_widths[j] != 0
+        #                 ]
+        #                 for i in range(len(self._partitions_cache))
+        #             ]
+        #             if len(row)
+        #         ]
+        #     )
+        #     self._remove_empty_blocks()
+        #     self._filtered_empties = True
         return self._partitions_cache
 
     def _set_partitions(self, new_partitions):
@@ -206,6 +209,19 @@ class BaseFrameManager(object):
             A Pandas Series
         """
         raise NotImplementedError("Blocked on Distributed Series")
+
+    def ensure_actor_full_axis_partitions(self, axis, n_nodes):
+        grouped_parts = self.partitions if axis else self.partitions.T
+        results = []
+        placement_actors = []
+        actors = get_available_actors(n_nodes)
+        for ind, parts in enumerate(grouped_parts):
+            actor = actors[ind % len(actors)]
+            results.extend([actor.receive.remote(part) for part in parts])
+            placement_actors.append([actor for _ in range(len(parts))])
+        placement_actors = np.array(placement_actors)
+        self.actors = placement_actors if axis else placement_actors.T
+        return all(ray.get(results))
 
     def groupby_reduce(self, axis, by, map_func, reduce_func):
         by_parts = np.squeeze(by.partitions)

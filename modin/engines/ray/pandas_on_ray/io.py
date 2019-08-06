@@ -58,7 +58,6 @@ def _read_parquet_columns(path, columns, num_splits, kwargs):  # pragma: no cove
     return _split_result_for_readers(0, num_splits, df) + [len(df.index), df.dtypes]
 
 
-@ray.remote
 def _read_csv_with_offset_pandas_on_ray(
     fname, num_splits, start, end, kwargs, header
 ):  # pragma: no cover

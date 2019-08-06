@@ -83,46 +83,6 @@ import ray
 import types
 
 from .. import __version__
-from .concat import concat
-from .dataframe import DataFrame
-from .datetimes import to_datetime
-from .io import (
-    read_csv,
-    read_parquet,
-    read_json,
-    read_html,
-    read_clipboard,
-    read_excel,
-    read_hdf,
-    read_feather,
-    read_msgpack,
-    read_stata,
-    read_sas,
-    read_pickle,
-    read_sql,
-    read_gbq,
-    read_table,
-    read_fwf,
-    read_sql_table,
-    read_sql_query,
-    ExcelFile,
-    to_pickle,
-    HDFStore,
-)
-from .reshape import get_dummies, melt, crosstab, lreshape, wide_to_long
-from .series import Series
-from .general import (
-    isna,
-    isnull,
-    merge,
-    merge_asof,
-    merge_ordered,
-    pivot_table,
-    notnull,
-    notna,
-    pivot,
-)
-from .plotting import Plotting as plotting
 from .. import __execution_engine__ as execution_engine
 
 # Set this so that Pandas doesn't try to multithread by itself
@@ -198,7 +158,51 @@ elif execution_engine == "Dask":  # pragma: no cover
 elif execution_engine != "Python":
     raise ImportError("Unrecognized execution engine: {}.".format(execution_engine))
 
-DEFAULT_NPARTITIONS = max(4, int(num_cpus))
+# DEFAULT_NPARTITIONS = max(4, int(num_cpus))
+num_per_cpu = int(os.environ.get("MODIN_NUM_PER_CPU", 1))
+DEFAULT_NPARTITIONS = int(num_per_cpu * (num_cpus - 2))
+print(DEFAULT_NPARTITIONS)
+
+from .concat import concat
+from .dataframe import DataFrame
+from .datetimes import to_datetime
+from .io import (
+    read_csv,
+    read_parquet,
+    read_json,
+    read_html,
+    read_clipboard,
+    read_excel,
+    read_hdf,
+    read_feather,
+    read_msgpack,
+    read_stata,
+    read_sas,
+    read_pickle,
+    read_sql,
+    read_gbq,
+    read_table,
+    read_fwf,
+    read_sql_table,
+    read_sql_query,
+    ExcelFile,
+    to_pickle,
+    HDFStore,
+)
+from .reshape import get_dummies, melt, crosstab, lreshape, wide_to_long
+from .series import Series
+from .general import (
+    isna,
+    isnull,
+    merge,
+    merge_asof,
+    merge_ordered,
+    pivot_table,
+    notnull,
+    notna,
+    pivot,
+)
+from .plotting import Plotting as plotting
 
 __all__ = [
     "DataFrame",

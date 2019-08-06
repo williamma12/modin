@@ -422,7 +422,7 @@ class RayIO(BaseIO):
                 # - The nth object is the dtypes of the partition. We combine these to
                 #   form the final dtypes below.
                 # partition_id = cls.read_csv_remote_task._remote(
-                partition_df = actors[ind].run._remote(
+                partition_id = actors[ind].run._remote(
                     args=(
                         cls.read_csv_remote_task,
                         filepath,

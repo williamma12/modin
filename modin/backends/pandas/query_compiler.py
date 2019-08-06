@@ -901,32 +901,32 @@ class PandasQueryCompiler(BaseQueryCompiler):
         Returns:
             A new QueryCompiler joined on the left_on and right_on columns.
         """
-        # how = kwargs.get("how", "inner")
+        how = kwargs.get("how", "inner")
 
-        # if hasattr(self.data, "sorted") and self.data.sorted == left_on[0]:
-        #     left_data = self.data
-        # else:
-        #     left_on = list(self.columns.get_indexer(left_on))
-        #     left_data = self.data.sort(0, self._is_transposed, left_on, n_bins=len(right_query_compiler.data.block_lengths))
+        if hasattr(self.data, "sorted") and self.data.sorted == left_on[0]:
+            left_data = self.data
+        else:
+            left_on = list(self.columns.get_indexer(left_on))
+            left_data = self.data.sort(0, self._is_transposed, left_on, n_bins=len(right_query_compiler.data.block_lengths))
 
-        # def sort_merge_join_builder(right_df, left_df):
-        #     on_labels = [
-        #         label
-        #         for label in right_df.columns
-        #         if isinstance(label, str) and "__sort_" in label
-        #     ]
+        def sort_merge_join_builder(right_df, left_df):
+            on_labels = [
+                label
+                for label in right_df.columns
+                if isinstance(label, str) and "__sort_" in label
+            ]
 
-        #     left_df.columns = ["left_{}".format(col) if col not in on_labels else col for col in left_df.columns]
-        #     right_df.columns = ["right_{}".format(col) if col not in on_labels else col for col in right_df.columns]
+            left_df.columns = ["left_{}".format(col) if col not in on_labels else col for col in left_df.columns]
+            right_df.columns = ["right_{}".format(col) if col not in on_labels else col for col in right_df.columns]
 
-        #     result = pandas.merge(left_df, right_df, left_on=on_labels, right_on=on_labels, **kwargs)
-        #     result = result.drop(on_labels, axis=1)
-        #     result.columns = pandas.RangeIndex(len(result.columns))
-        #     return result
+            result = pandas.merge(left_df, right_df, left_on=on_labels, right_on=on_labels, **kwargs)
+            result = result.drop(on_labels, axis=1)
+            result.columns = pandas.RangeIndex(len(result.columns))
+            return result
 
-        # # TODO: Check if right is sorted identically to the left.
-        # right_on = list(right_query_compiler.columns.get_indexer(right_on))
-        # new_data = right_query_compiler.data.sort(0, right_query_compiler._is_transposed, right_on, n_bins=left_data.n_bins, bins=left_data.bins, other_on_partitions=left_data.on_partitions, other_partitions=left_data.partitions, func=sort_merge_join_builder)
+        # TODO: Check if right is sorted identically to the left.
+        right_on = list(right_query_compiler.columns.get_indexer(right_on))
+        new_data = right_query_compiler.data.sort(0, right_query_compiler._is_transposed, right_on, n_bins=left_data.n_bins, bins=left_data.bins, other_on_partitions=left_data.on_partitions, other_partitions=left_data.partitions, func=sort_merge_join_builder)
 
         # Create columns and get index.
         col_names = []
@@ -936,7 +936,6 @@ class PandasQueryCompiler(BaseQueryCompiler):
             col_names.append(self.columns[left_cumsum[i]:left_cumsum[i+1]])
             col_names.append(right_query_compiler.columns[right_cumsum[i]:right_cumsum[i+1]])
         new_columns = pandas.Index(np.concatenate(col_names))
-        print(new_columns)
         new_index = pandas.RangeIndex(sum(new_data.block_lengths))
         new_dtypes = self.dtypes.append(right_query_compiler.dtypes)
         return self.__constructor__(new_data, new_index, new_columns, new_dtypes)

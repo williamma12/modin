@@ -160,7 +160,7 @@ elif execution_engine != "Python":
 
 # DEFAULT_NPARTITIONS = max(4, int(num_cpus))
 num_per_cpu = int(os.environ.get("MODIN_NUM_PER_CPU", 1))
-DEFAULT_NPARTITIONS = int(num_per_cpu * (num_cpus - 2))
+DEFAULT_NPARTITIONS = int(num_per_cpu * (num_cpus - 4))
 print(DEFAULT_NPARTITIONS)
 
 from .concat import concat

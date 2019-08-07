@@ -411,6 +411,7 @@ class RayIO(BaseIO):
 
             ind = 0
             actors = get_available_actors(9999)
+            locations = []
             while f.tell() < total_bytes:
                 start = f.tell()
                 f.seek(chunk_size, os.SEEK_CUR)
@@ -422,7 +423,8 @@ class RayIO(BaseIO):
                 # - The nth object is the dtypes of the partition. We combine these to
                 #   form the final dtypes below.
                 # partition_id = cls.read_csv_remote_task._remote(
-                partition_id = actors[ind].run._remote(
+                actor = actors[ind]
+                partition_id = actor.run._remote(
                     args=(
                         cls.read_csv_remote_task,
                         filepath,
@@ -438,6 +440,7 @@ class RayIO(BaseIO):
                 index_ids.append(partition_id[-2])
                 dtypes_ids.append(partition_id[-1])
 
+                locations.append([actor for _ in range(len(partition_id)-2)])
                 ind = (ind + 1) % len(actors)
 
         # Compute the index based on a sum of the lengths of each partition (by default)
@@ -492,7 +495,7 @@ class RayIO(BaseIO):
             dtypes = pandas.Series(dtypes, index=column_names)
 
         new_query_compiler = cls.query_compiler_cls(
-            cls.frame_mgr_cls(np.array(partition_ids)),
+            cls.frame_mgr_cls(np.array(partition_ids), actors=np.array(locations)),
             new_index,
             column_names,
             dtypes=dtypes,

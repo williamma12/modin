@@ -10,8 +10,9 @@ from pandas.api.types import is_integer
 class RayFrameManager(BaseFrameManager):
     """This method implements the interface in `BaseFrameManager`."""
 
-    def __init__(self, partitions, sort=False, bins=None, n_bins=0, on_partitions=None):
+    def __init__(self, partitions, actors=None, sort=False, bins=None, n_bins=0, on_partitions=None):
         self.partitions = partitions
+        self.actors = actors
         self.sorted = sort
         self.bins = bins
         self.n_bins = n_bins

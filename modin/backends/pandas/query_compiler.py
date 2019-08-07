@@ -937,6 +937,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         right_cumsum = np.insert(np.cumsum(right_query_compiler.data.block_widths), 0, 0)
         for i in range(len(self.data.block_widths)):
             col_names.append(self.columns[left_cumsum[i]:left_cumsum[i+1]])
+        for i in range(len(right_query_compiler.data.block_widths)):
             col_names.append(right_query_compiler.columns[right_cumsum[i]:right_cumsum[i+1]])
         new_columns = pandas.Index(np.concatenate(col_names))
         new_index = pandas.RangeIndex(sum(new_data.block_lengths))

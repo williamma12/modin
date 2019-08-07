@@ -1368,18 +1368,18 @@ class BaseFrameManager(object):
         metadata["n_bins"] = n_bins
         metadata["on_partitions"] = on_partitions
 
-        print("OTHER PARTITIONS")
-        for row in other_parts:
-            print([[sum([b.to_pandas().shape[0] for b in block]) if isinstance(block, np.ndarray) else block.to_pandas().shape for block in blocks] for blocks in row])
-        print("ON PARTITIONS")
-        for row in on_partitions:
-            print([block.to_pandas().shape for block in row])
-        print("OLD PARTITIONS")
-        for key, val in old_partitions.items():
-            print(key)
-            print([[i.to_pandas().shape for i in row] for row in val])
-        print("NEW PARTITIONS")
-        print(new_partitions)
+        # print("OTHER PARTITIONS")
+        # for row in other_parts:
+        #     print([[sum([b.to_pandas().shape[0] for b in block]) if isinstance(block, np.ndarray) else block.to_pandas().shape for block in blocks] for blocks in row])
+        # print("ON PARTITIONS")
+        # for row in on_partitions:
+        #     print([block.to_pandas().shape for block in row])
+        # print("OLD PARTITIONS")
+        # for key, val in old_partitions.items():
+        #     print(key)
+        #     print([[i.to_pandas().shape for i in row] for row in val])
+        # print("NEW PARTITIONS")
+        # print(new_partitions)
 
         return self._shuffle(
             axis, is_transposed, new_partitions, old_partitions, on_partitions=on_partitions, other_partitions=other_parts, func=sort_func, metadata=metadata, new_block_length=n_bins,

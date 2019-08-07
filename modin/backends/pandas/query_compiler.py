@@ -1392,7 +1392,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
     def str_slice(self, **kwargs):
         return self._str_map_partitions(
-            pandas.Series.str.slice, new_dtypes=self.dtypes, **kwargs
+            pandas.Series.str.slice, **kwargs
         )
 
     def str_slice_replace(self, **kwargs):

@@ -1369,7 +1369,7 @@ class BaseFrameManager(object):
             for row_idx, part in enumerate(partitions.T[col_idx]):
                 if row_idx not in on_indices:
                     if self.actors is not None:
-                        actor = actors[col_idx][row_idx]
+                        actor = actors[row_idx][col_idx]
                         result = part.split(actor, axis, is_transposed, splits[col_idx])
                     else:
                         result = part.split(axis, is_transposed, splits[col_idx])
@@ -1514,7 +1514,7 @@ class BaseFrameManager(object):
                     part_width = lengths[col_idx] if axis else block_widths[row_idx]
                     part_length = block_lengths[row_idx] if axis else lengths[col_idx]
                 if self.actors is not None:
-                    actor = actors[col_idx][row_idx]
+                    actor = actors[row_idx][col_idx]
                     part = self._partition_class.shuffle(
                         axis,
                         func,

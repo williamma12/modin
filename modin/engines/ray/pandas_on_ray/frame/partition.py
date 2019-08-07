@@ -35,7 +35,7 @@ class PandasOnRayFramePartition(BaseFramePartition):
         except RayTaskError as e:
             handle_ray_task_error(e)
 
-    def apply(self, func, **kwargs):
+    def apply(self, func, actor, **kwargs):
         """Apply a function to the object stored in this partition.
 
         Note: It does not matter if func is callable or an ObjectID. Ray will
@@ -50,7 +50,15 @@ class PandasOnRayFramePartition(BaseFramePartition):
         """
         oid = self.oid
         call_queue = self.call_queue + [(func, kwargs)]
-        new_obj, result, length, width = deploy_ray_func.remote(call_queue, oid)
+        # new_obj, result, length, width = deploy_ray_func.remote(call_queue, oid)
+        new_obj, result, length, width = actor.run._remote(
+                args=[
+                    deploy_ray_func,
+                    call_queue,
+                    oid,
+                    ],
+                num_return_vals=4
+                )
         if len(self.call_queue) > 0:
             self.oid = new_obj
             self.call_queue = []
@@ -75,7 +83,7 @@ class PandasOnRayFramePartition(BaseFramePartition):
         if self._width_cache is None:
             self._width_cache = PandasOnRayFramePartition(width)
 
-    def split(self, axis, is_transposed, splits):
+    def split(self, actor, axis, is_transposed, splits):
         """Split partition along axis given list of resulting index groups (splits).
 
         Args:
@@ -104,8 +112,12 @@ class PandasOnRayFramePartition(BaseFramePartition):
         else:
             if isinstance(splits[0], BaseFramePartition):
                 splits = [split.oid for split in splits]
-            new_parts = deploy_ray_split._remote(
-                args=[self.call_queue, self.oid, axis, is_transposed, *splits],
+            # new_parts = deploy_ray_split._remote(
+            #     args=[self.call_queue, self.oid, axis, is_transposed, *splits],
+            #     num_return_vals=3 + len(splits),
+            # )
+            new_parts = actor.run._remote(
+                args=[deploy_ray_split, self.call_queue, self.oid, axis, is_transposed, *splits],
                 num_return_vals=3 + len(splits),
             )
 
@@ -238,7 +250,6 @@ class PandasOnRayFramePartition(BaseFramePartition):
         return cls.put(pandas.DataFrame())
 
 
-@ray.remote(num_return_vals=4)
 def deploy_ray_func(call_queue, partition):  # pragma: no cover
     def deserialize(obj):
         if isinstance(obj, ray.ObjectID):
@@ -271,7 +282,6 @@ def deploy_ray_func(call_queue, partition):  # pragma: no cover
     )
 
 
-@ray.remote
 def deploy_ray_split(
     call_queue, partition, axis, is_transposed, *splits
 ):  # pragma: no cover

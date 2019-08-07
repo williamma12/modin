@@ -29,6 +29,7 @@ class BaseFrameAxisPartition(object):  # pragma: no cover
     def apply(
         self,
         func,
+        actor,
         num_splits=None,
         other_axis_partition=None,
         maintain_partitioning=True,

@@ -262,13 +262,7 @@ class BaseFrameManager(object):
                 row_parts = []
                 for col_idx, block in enumerate(row):
                     actor = self.actors[row_idx][col_idx]
-                    row_parts.append(actor.run._remote(
-                        args=[
-                            self.partition_class.apply,
-                            block,
-                            preprocessed_map_func,
-                            ]
-                        ))
+                    row_parts.append(part.apply(preprocessed_map_func, actor))
                 new_partitions.append(row_parts)
             new_partitions = np.array(new_partitions)
         else:
@@ -278,7 +272,7 @@ class BaseFrameManager(object):
                     for row_of_parts in self.partitions
                 ]
             )
-        return self.__constructor__(new_partitions)
+        return self.__constructor__(new_partitions, actors=self.actors)
 
     def lazy_map_across_blocks(self, map_func, kwargs):
         preprocessed_map_func = self.preprocess_func(map_func)
@@ -291,7 +285,7 @@ class BaseFrameManager(object):
                 for row_of_parts in self.partitions
             ]
         )
-        return self.__constructor__(new_partitions)
+        return self.__constructor__(new_partitions, actors=self.actors)
 
     def copartition_datasets(
         self, axis, other, new_index, old_index, other_is_transposed
@@ -373,14 +367,7 @@ class BaseFrameManager(object):
             actors = self.actors[0] if not axis else self.actors.T[0]
             for i, part in enumerate(partitions):
                 actor = actors[i]
-                result_blocks.append(actor.run._remote(
-                    args=[
-                        axis_part_class.apply,
-                        part,
-                        preprocessed_map_func,
-                        num_splits,
-                        ]
-                    ))
+                result_blocks.append(part.apply(preprocessed_map_func, actor, num_splits=num_splits))
             result_blocks = np.array(result_blocks)
         else:
             result_blocks = np.array(
@@ -393,9 +380,9 @@ class BaseFrameManager(object):
         # rows, so we need to transpose the returned 2D numpy array to return
         # the structure to the correct order.
         return (
-            self.__constructor__(result_blocks.T)
+            self.__constructor__(result_blocks.T, actors=self.actors)
             if not axis
-            else self.__constructor__(result_blocks)
+            else self.__constructor__(result_blocks, actors=self.actors)
         )
 
     def take(self, axis, n):
@@ -479,7 +466,7 @@ class BaseFrameManager(object):
                         for i in range(idx + 1)
                     ]
                 )
-        return self.__constructor__(result.T) if axis else self.__constructor__(result)
+        return self.__constructor__(result.T, actors=self.actors) if axis else self.__constructor__(result, actors=self.actors)
 
     def concat(self, axis, other_blocks):
         """Concatenate the blocks with another set of blocks.
@@ -499,11 +486,13 @@ class BaseFrameManager(object):
         if type(other_blocks) is list:
             other_blocks = [blocks.partitions for blocks in other_blocks]
             return self.__constructor__(
-                np.concatenate([self.partitions] + other_blocks, axis=axis)
+                np.concatenate([self.partitions] + other_blocks, axis=axis),
+                actors=self.actors
             )
         else:
             return self.__constructor__(
-                np.append(self.partitions, other_blocks.partitions, axis=axis)
+                np.append(self.partitions, other_blocks.partitions, axis=axis),
+                actors=self.actors
             )
 
     def copy(self):
@@ -512,7 +501,7 @@ class BaseFrameManager(object):
         Returns:
             A new BaseFrameManager object, the type of object that called this.
         """
-        return self.__constructor__(self.partitions.copy())
+        return self.__constructor__(self.partitions.copy()), actors=self.actors
 
     def transpose(self, *args, **kwargs):
         """Transpose the blocks stored in this object.
@@ -520,7 +509,7 @@ class BaseFrameManager(object):
         Returns:
             A new BaseFrameManager object, the type of object that called this.
         """
-        return self.__constructor__(self.partitions.T)
+        return self.__constructor__(self.partitions.T, actors=self.actors)
 
     def to_pandas(self, is_transposed=False):
         """Convert this object into a Pandas DataFrame from the partitions.
@@ -935,7 +924,7 @@ class BaseFrameManager(object):
                     ]
                 )
         return (
-            self.__constructor__(result.T) if not axis else self.__constructor__(result)
+            self.__constructor__(result.T, actors=self.actors) if not axis else self.__constructor__(result, actors=self.actors)
         )
 
     def apply_func_to_select_indices_along_full_axis(
@@ -1075,7 +1064,8 @@ class BaseFrameManager(object):
                     for row_idx, row_internal_indices in row_partitions_list
                     if len(row_internal_indices) > 0
                 ]
-            )
+            ), 
+            actors=self.actors
         )
 
     def apply_func_to_indices_both_axis(
@@ -1251,15 +1241,7 @@ class BaseFrameManager(object):
                     new_blocks = []
                     for row_idx, part in enumerate(partitions[col_idx]):
                         actor = actors[col_idx][row_idx]
-                        new_blocks.append(actor.run._remote(
-                            args=[
-                                self._partition_class.split,
-                                part,
-                                axis,
-                                is_transposed,
-                                splits,
-                                ]
-                            ))
+                        new_blocks.append(part.split(actor, axis, is_transposed, splits))
                 else:
                     old_partitions[col_idx] = np.array(
                         [
@@ -1386,15 +1368,7 @@ class BaseFrameManager(object):
                 if row_idx not in on_indices:
                     if self.actors is not None:
                         actor = actors[col_idx][row_idx]
-                        result = actor.run._remote(
-                                args=[
-                                    self._partition_class.split,
-                                    part,
-                                    axis,
-                                    is_transposed,
-                                    splits,
-                                    ]
-                                )
+                        result = part.split(actor, axis, is_transposed, splits[col_idx])
                     else:
                         result = part.split(axis, is_transposed, splits[col_idx])
                 else:
@@ -1539,20 +1513,17 @@ class BaseFrameManager(object):
                     part_length = block_lengths[row_idx] if axis else lengths[col_idx]
                 if self.actors is not None:
                     actor = actors[col_idx][row_idx]
-                    part = actor.run._remote( 
-                            args=[
-                                self._partition_class.shuffle,
-                                axis,
-                                func,
-                                on_parts,
-                                block_parts,
-                                other_on_parts,
-                                other_parts,
-                                part_length,
-                                part_width,
-                                fill_value
-                                ]
-                            )
+                    part = self._partition_class.shuffle(
+                        axis,
+                        func,
+                        on_parts,
+                        block_parts,
+                        other_on_parts,
+                        other_parts,
+                        length=part_length,
+                        width=part_width,
+                        fill_value=fill_value
+                    )
                 else:
                     part = self._partition_class.shuffle(
                         axis,
@@ -1568,13 +1539,13 @@ class BaseFrameManager(object):
                 axis_parts.append(part)
             result.append(axis_parts)
         return (
-            self.__constructor__(np.array(result), **metadata)
+            self.__constructor__(np.array(result), actors=self.actors, **metadata)
             if axis
-            else self.__constructor__(np.array(result).T, **metadata)
+            else self.__constructor__(np.array(result).T, actors=self.actors, **metadata)
         )
 
     def __getitem__(self, key):
-        return self.__constructor__(self.partitions[key])
+        return self.__constructor__(self.partitions[key], actors=self.actors[key])
 
     def __len__(self):
         return sum(self.block_lengths)

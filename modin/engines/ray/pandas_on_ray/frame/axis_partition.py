@@ -23,10 +23,11 @@ class PandasOnRayFrameAxisPartition(PandasFrameAxisPartition):
 
     @classmethod
     def deploy_axis_func(
-        cls, axis, func, num_splits, kwargs, maintain_partitioning, *partitions
+        cls, axis, func, actor, num_splits, kwargs, maintain_partitioning, *partitions
     ):
-        return deploy_ray_func._remote(
+        return actor.run._remote(
             args=(
+                deploy_ray_func,
                 PandasFrameAxisPartition.deploy_axis_func,
                 axis,
                 func,

@@ -262,7 +262,7 @@ class BaseFrameManager(object):
                 row_parts = []
                 for col_idx, block in enumerate(row):
                     actor = self.actors[row_idx][col_idx]
-                    row_parts.append(part.apply(preprocessed_map_func, actor))
+                    row_parts.append(block.apply(preprocessed_map_func, actor))
                 new_partitions.append(row_parts)
             new_partitions = np.array(new_partitions)
         else:
@@ -484,15 +484,16 @@ class BaseFrameManager(object):
             A new BaseFrameManager object, the type of object that called this.
         """
         if type(other_blocks) is list:
+            other_actors = [blocks.actors for blocks in other_blocks]
             other_blocks = [blocks.partitions for blocks in other_blocks]
             return self.__constructor__(
                 np.concatenate([self.partitions] + other_blocks, axis=axis),
-                actors=self.actors
+                actors=np.concatenate([self.actors] + other_actors, axis=axis)
             )
         else:
             return self.__constructor__(
                 np.append(self.partitions, other_blocks.partitions, axis=axis),
-                actors=self.actors
+                actors=np.append(self.actors, other_blocks.actors, axis=axis)
             )
 
     def copy(self):
@@ -501,7 +502,7 @@ class BaseFrameManager(object):
         Returns:
             A new BaseFrameManager object, the type of object that called this.
         """
-        return self.__constructor__(self.partitions.copy()), actors=self.actors
+        return self.__constructor__(self.partitions.copy(), actors=self.actors)
 
     def transpose(self, *args, **kwargs):
         """Transpose the blocks stored in this object.
@@ -1242,6 +1243,7 @@ class BaseFrameManager(object):
                     for row_idx, part in enumerate(partitions[col_idx]):
                         actor = actors[col_idx][row_idx]
                         new_blocks.append(part.split(actor, axis, is_transposed, splits))
+                    old_partitions[col_idx] = np.array(new_blocks)
                 else:
                     old_partitions[col_idx] = np.array(
                         [

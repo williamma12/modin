@@ -143,7 +143,7 @@ def initialize_ray():
 
 if execution_engine == "Ray":
     initialize_ray()
-    num_cpus = sum(val for key, val in ray.cluster_resources() if "CPU" not in key and "HEAD" not in key)
+    num_cpus = sum(int(val) for key, val in ray.cluster_resources() if "CPU" not in key and "HEAD" not in key)
 elif execution_engine == "Dask":  # pragma: no cover
     from distributed.client import _get_global_client
 
@@ -160,7 +160,7 @@ elif execution_engine != "Python":
 
 # DEFAULT_NPARTITIONS = max(4, int(num_cpus))
 num_per_cpu = int(os.environ.get("MODIN_NUM_PER_CPU", 1))
-DEFAULT_NPARTITIONS = int(num_per_cpu * (num_cpus - int(ray.cluster_resources()["HEAD"])))
+DEFAULT_NPARTITIONS = int(num_per_cpu * num_cpus)
 print(DEFAULT_NPARTITIONS)
 
 from .concat import concat

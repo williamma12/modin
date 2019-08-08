@@ -918,6 +918,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 for label in right_df.columns
                 if isinstance(label, str) and "__sort_" in label
             ]
+            print(left_df)
 
             left_df.columns = ["left_{}".format(col) if col not in on_labels else col for col in left_df.columns]
             right_df.columns = ["right_{}".format(col) if col not in on_labels else col for col in right_df.columns]

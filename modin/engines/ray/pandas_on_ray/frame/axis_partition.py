@@ -96,9 +96,7 @@ class PandasOnRayFrameAxisPartition(PandasFrameAxisPartition):
             on_row_indices, on_row_ordering = on_indices[row_idx]
             for col_idx, block in enumerate(row_parts):
                 # Create and save actor
-                actor = SortSplitActor._remote(
-                    [cls.axis, is_transposed, block.call_queue, block.oid, on_indices], num_cpus=1/(len(partitions)*len(row_parts))
-                )
+                actor = SortSplitActor.remote(cls.axis, is_transposed, block.call_queue, block.oid, on_indices)
                 sort_split_actors[row_idx].append(actor)
 
                 # Get the on partition and bins, if needed.
@@ -120,6 +118,7 @@ class PandasOnRayFrameAxisPartition(PandasFrameAxisPartition):
                     on_row_parts.append(on_partition)
             on_parts.append(on_row_parts)
 
+        print(ray.get(bin_parts))
         # Merge on parts to line up with the axis.
         on_partitions = []
         splits = []
@@ -210,7 +209,7 @@ def deploy_ray_func(func, *args):  # pragma: no cover
         return [i for r in result for i in [r, None, None]]
 
 
-@ray.remote
+@ray.remote(num_cpus=0)
 class SortSplitActor(object):  # pragma: no cover
     @ray.method(num_return_vals=0)
     def __init__(self, axis, is_transposed, call_queue, partition, on_indices):

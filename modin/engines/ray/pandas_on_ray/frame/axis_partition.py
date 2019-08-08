@@ -207,7 +207,7 @@ def deploy_ray_func(func, *args):  # pragma: no cover
         return [i for r in result for i in [r, None, None]]
 
 
-@ray.remote(num_cpus=0)
+@ray.remote(num_cpus=0.01)
 class SortSplitActor(object):  # pragma: no cover
     @ray.method(num_return_vals=0)
     def __init__(self, axis, is_transposed, call_queue, partition, on_indices):

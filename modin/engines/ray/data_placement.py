@@ -21,7 +21,7 @@ all_actors = []
 for resource in nodes:
     for _ in range(int(cluster_resources[resource])):
         all_actors.append(
-            NodeActor._remote([], {}, num_cpus=1, resources={resource: 1})
+            NodeActor._remote([], {}, num_cpus=0.01, resources={resource: 1})
         )
 
 

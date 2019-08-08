@@ -1516,6 +1516,7 @@ class BaseFrameManager(object):
                 if self.actors is not None:
                     actor = actors[row_idx][col_idx]
                     part = self._partition_class.shuffle(
+                        actor,
                         axis,
                         func,
                         on_parts,

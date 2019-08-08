@@ -131,7 +131,7 @@ class PandasOnRayFramePartition(BaseFramePartition):
             return [PandasOnRayFramePartition(new_part) for new_part in new_parts]
 
     @classmethod
-    def shuffle(cls, axis, func, on_partitions, partitions, other_on_partitions, other_partitions, length=None, width=None, fill_value=np.nan):
+    def shuffle(cls, actor, axis, func, on_partitions, partitions, other_on_partitions, other_partitions, length=None, width=None, fill_value=np.nan):
         """Takes the partitions combines them based on the indices.
 
         Args:
@@ -165,20 +165,24 @@ class PandasOnRayFramePartition(BaseFramePartition):
             else:
                 part_oids.append(part)
                 call_queues.append(None)
-        result, ray_length, ray_width = deploy_ray_shuffle.remote(
-            axis,
-            func,
-            length if axis else width,
-            fill_value,
-            len(on_partitions),
-            len(other_on_partitions),
-            len(other_partitions),
-            call_queues,
-            *on_oids,
-            *other_on_oids,
-            *other_oids,
-            *part_oids
-        )
+        result, ray_length, ray_width = actor.run._remote(
+                args=[
+                    deploy_ray_shuffle,
+                    axis,
+                    func,
+                    length if axis else width,
+                    fill_value,
+                    len(on_partitions),
+                    len(other_on_partitions),
+                    len(other_partitions),
+                    call_queues,
+                    *on_oids,
+                    *other_on_oids,
+                    *other_oids,
+                    *part_oids
+                    ],
+                num_return_vals=3
+                )
         length = length if func is None else PandasOnRayFramePartition(ray_length)
         width = width if func is None else PandasOnRayFramePartition(ray_width)
         return PandasOnRayFramePartition(result, length, width)
@@ -317,7 +321,6 @@ def deploy_ray_split(
     ] + result
 
 
-@ray.remote(num_return_vals=3)
 def deploy_ray_shuffle(
     axis, shuffle_func, length, fill_value, n_on_partitions, n_other_on_partitions, n_other_partitions, call_queues, *partitions
 ):  # pragma: no cover

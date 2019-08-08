@@ -62,7 +62,7 @@ auth:
 # For more documentation on available fields, see:
 # http://boto3.readthedocs.io/en/latest/reference/services/ec2.html#EC2.ServiceResource.create_instances
 head_node:
-    InstanceType: m5.4xlarge
+    InstanceType: m5.xlarge
     ImageId: ami-09c2435df1137686f # Deep Learning AMI
 
     # You can provision additional disk space with a conf as follows
@@ -78,7 +78,7 @@ head_node:
 # For more documentation on available fields, see:
 # http://boto3.readthedocs.io/en/latest/reference/services/ec2.html#EC2.ServiceResource.create_instances
 worker_nodes:
-    InstanceType: m5.4xlarge
+    InstanceType: m5.xlarge
     ImageId: ami-09c2435df1137686f # Deep Learning AMI
 
     # Run workers on spot by default. Comment this out to use on-demand.
@@ -107,8 +107,8 @@ setup_commands:
     - pip install s3fs
     - pip install -U git+https://github.com/williamma12/modin@cluster/data_placement
     - echo 'export MODIN_RAY_CLUSTER=True' >> ~/.bashrc
-    # - echo 'export RAY_NUM_CPUS=$(nproc)' >> ~/.bashrc
-    - echo 'export RAY_NUM_CPUS=4' >> ~/.bashrc
+    - echo 'export RAY_NUM_CPUS=$(nproc)' >> ~/.bashrc
+    # - echo 'export RAY_NUM_CPUS=4' >> ~/.bashrc
     - echo 'export RAY_RESOURCES="{\"$RAY_ID\":$RAY_NUM_CPUS}"' >> ~/.bashrc
     - echo 'export MODIN_NUM_PER_CPU=1' >> ~/.bashrc
     - echo 'export MEMORY_STORE_SIZE=$(awk "/MemFree/ { printf \"%d \\n\", \$2*1024}" /proc/meminfo)' >> ~/.bashrc

@@ -118,7 +118,6 @@ class PandasOnRayFrameAxisPartition(PandasFrameAxisPartition):
                     on_row_parts.append(on_partition)
             on_parts.append(on_row_parts)
 
-        print(ray.get(bin_parts))
         # Merge on parts to line up with the axis.
         on_partitions = []
         splits = []

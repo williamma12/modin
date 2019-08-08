@@ -143,7 +143,7 @@ def initialize_ray():
 
 if execution_engine == "Ray":
     initialize_ray()
-    num_cpus = ray.cluster_resources()["CPU"]
+    num_cpus = sum(val for key, val in ray.cluster_resources() if "CPU" not in key and "HEAD" not in key)
 elif execution_engine == "Dask":  # pragma: no cover
     from distributed.client import _get_global_client
 

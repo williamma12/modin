@@ -90,11 +90,13 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         index_obj = self.index if not axis else self.columns
         old_blocks = self.data if compute_diff else None
+        print("START GET INDICES")
         new_indices = data_object.get_indices(
             axis=axis,
             index_func=lambda df: pandas_index_extraction(df, axis),
             old_blocks=old_blocks,
         )
+        print("FINISH GET INDICES")
         return index_obj[new_indices] if compute_diff else new_indices
 
     def _validate_set_axis(self, new_labels, old_labels):
@@ -936,13 +938,13 @@ class PandasQueryCompiler(BaseQueryCompiler):
         left_cumsum = np.insert(np.cumsum(self.data.block_widths), 0, 0)
         right_cumsum = np.insert(np.cumsum(right_query_compiler.data.block_widths), 0, 0)
         for i in range(len(self.data.block_widths)):
-            col_names.append(self.columns[left_cumsum[i]:left_cumsum[i+1]])
-        for i in range(len(right_query_compiler.data.block_widths)):
-            col_names.append(right_query_compiler.columns[right_cumsum[i]:right_cumsum[i+1]])
+            if i+1 < len(left_cumsum):
+                col_names.append(self.columns[left_cumsum[i]:left_cumsum[i+1]])
+            if i+1 < len(right_cumsum):
+                col_names.append(right_query_compiler.columns[right_cumsum[i]:right_cumsum[i+1]])
         new_columns = pandas.Index(np.concatenate(col_names))
         new_index = pandas.RangeIndex(sum(new_data.block_lengths))
-        new_dtypes = self.dtypes.append(right_query_compiler.dtypes)
-        return self.__constructor__(new_data, new_index, new_columns, new_dtypes)
+        return self.__constructor__(new_data, new_index, new_columns)
 
     # END Reindex/reset_index
 

@@ -18,7 +18,6 @@ class PandasOnRayFrameManager(RayFrameManager):
     _row_partition_class = PandasOnRayFrameRowPartition
 
     def groupby_reduce(self, axis, by, map_func, reduce_func):  # pragma: no cover
-        @ray.remote
         def func(df, other, map_func, call_queue_df=[], call_queue_other=[]):
             if len(call_queue_df) > 0:
                 for call, kwargs in call_queue_df:
@@ -37,7 +36,8 @@ class PandasOnRayFrameManager(RayFrameManager):
                 [
                     [
                         PandasOnRayFramePartition(
-                            func.remote(
+                            self.actors[row_idx][col_idx].run.remote(
+                                func,
                                 part.oid,
                                 by_parts[col_idx].oid
                                 if axis
@@ -53,6 +53,7 @@ class PandasOnRayFrameManager(RayFrameManager):
                     ]
                     for row_idx in range(len(self.partitions))
                 ]
-            )
+            ),
+            actors=self.actors,
         )
         return new_partitions.map_across_full_axis(axis, reduce_func)

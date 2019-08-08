@@ -187,7 +187,6 @@ class PandasOnRayFrameRowPartition(PandasOnRayFrameAxisPartition):
     axis = 1
 
 
-@ray.remote
 def deploy_ray_func(func, *args):  # pragma: no cover
     """Run a function on a remote partition.
 

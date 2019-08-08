@@ -62,7 +62,7 @@ auth:
 # For more documentation on available fields, see:
 # http://boto3.readthedocs.io/en/latest/reference/services/ec2.html#EC2.ServiceResource.create_instances
 head_node:
-    InstanceType: m5.large
+    InstanceType: m5.4xlarge
     ImageId: ami-09c2435df1137686f # Deep Learning AMI
 
     # You can provision additional disk space with a conf as follows
@@ -78,7 +78,7 @@ head_node:
 # For more documentation on available fields, see:
 # http://boto3.readthedocs.io/en/latest/reference/services/ec2.html#EC2.ServiceResource.create_instances
 worker_nodes:
-    InstanceType: m5.2xlarge
+    InstanceType: m5.4xlarge
     ImageId: ami-09c2435df1137686f # Deep Learning AMI
 
     # Run workers on spot by default. Comment this out to use on-demand.

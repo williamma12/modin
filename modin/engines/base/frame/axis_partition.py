@@ -102,6 +102,7 @@ class PandasFrameAxisPartition(BaseFrameAxisPartition):
     def apply(
         self,
         func,
+        actor,
         num_splits=None,
         other_axis_partition=None,
         maintain_partitioning=True,
@@ -140,7 +141,7 @@ class PandasFrameAxisPartition(BaseFrameAxisPartition):
                     *tuple(self.list_of_blocks + other_axis_partition.list_of_blocks)
                 )
             )
-        args = [self.axis, func, num_splits, kwargs, maintain_partitioning]
+        args = [self.axis, func, actor, num_splits, kwargs, maintain_partitioning]
         args.extend(self.list_of_blocks)
         return self._wrap_partitions(self.deploy_axis_func(*args))
 

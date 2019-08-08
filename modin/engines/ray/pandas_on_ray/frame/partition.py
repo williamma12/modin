@@ -76,7 +76,7 @@ class PandasOnRayFramePartition(BaseFramePartition):
             return
         oid = self.oid
         call_queue = self.call_queue
-        _, self.oid, length, width = deploy_ray_func.remote(call_queue, oid)
+        _, self.oid, length, width = deploy_ray_func_NO_ACTOR.remote(call_queue, oid)
         self.call_queue = []
         if self._length_cache is None:
             self._length_cache = PandasOnRayFramePartition(length)
@@ -252,6 +252,39 @@ class PandasOnRayFramePartition(BaseFramePartition):
     @classmethod
     def empty(cls):
         return cls.put(pandas.DataFrame())
+
+
+@ray.remote(num_return_vals=4)
+def deploy_ray_func_NO_ACTOR(call_queue, partition):  # pragma: no cover
+    def deserialize(obj):
+        if isinstance(obj, ray.ObjectID):
+            return ray.get(obj)
+        return obj
+
+    if len(call_queue) > 1:
+        for func, kwargs in call_queue[:-1]:
+            func = deserialize(func)
+            kwargs = deserialize(kwargs)
+            try:
+                partition = func(partition, **kwargs)
+            except ValueError:
+                partition = func(partition.copy(), **kwargs)
+    func, kwargs = call_queue[-1]
+    func = deserialize(func)
+    kwargs = deserialize(kwargs)
+    try:
+        result = func(partition, **kwargs)
+    # Sometimes Arrow forces us to make a copy of an object before we operate on it. We
+    # don't want the error to propagate to the user, and we want to avoid copying unless
+    # we absolutely have to.
+    except ValueError:
+        result = func(partition.copy(), **kwargs)
+    return (
+        partition if len(call_queue) > 1 else None,
+        result,
+        len(result) if hasattr(result, "__len__") else 0,
+        len(result.columns) if hasattr(result, "columns") else 0,
+    )
 
 
 def deploy_ray_func(call_queue, partition):  # pragma: no cover

@@ -367,7 +367,7 @@ class BaseFrameManager(object):
             actors = self.actors[0] if not axis else self.actors.T[0]
             for i, part in enumerate(partitions):
                 actor = actors[i]
-                result_blocks.append(part.apply(preprocessed_map_func, actor, num_splits=num_splits))
+                result_blocks.append(part.apply(preprocessed_map_func, actor=actor, num_splits=num_splits))
             result_blocks = np.array(result_blocks)
         else:
             result_blocks = np.array(
@@ -612,11 +612,17 @@ class BaseFrameManager(object):
             # sure that none of the partitions are modified or filtered out before we
             # get the index information.
             # DO NOT CHANGE TO self.partitions under any circumstance.
-            new_indices = (
-                [idx.apply(func).get() for idx in self._partitions_cache.T[0]]
-                if len(self._partitions_cache.T)
-                else []
-            )
+            # new_indices = (
+            #     [idx.apply(func).get() for idx in self._partitions_cache.T[0]]
+            #     if len(self._partitions_cache.T)
+            #     else []
+            # )
+            new_indices = []
+            if len(self._partitions_cache.T):
+                for i, idx in enumerate(self._partitions_cache.T[0]):
+                    new_indices.append(idx.apply(func, self.actors.T[i][0]))
+            import ray
+            new_indices = ray.get([x.oid for x in new_indices])
             # This is important because sometimes we have resized the data. The new
             # sizes will not be valid if we are trying to compute the index on a
             # new object that has a different length.
@@ -625,11 +631,17 @@ class BaseFrameManager(object):
             else:
                 cumulative_block_lengths = np.array(self.block_lengths).cumsum()
         else:
-            new_indices = (
-                [idx.apply(func).get() for idx in self._partitions_cache[0]]
-                if len(self._partitions_cache)
-                else []
-            )
+            # new_indices = (
+            #     [idx.apply(func).get() for idx in self._partitions_cache[0]]
+            #     if len(self._partitions_cache)
+            #     else []
+            # )
+            new_indices = []
+            if len(self._partitions_cache):
+                for i, idx in enumerate(self._partitions_cache[0]):
+                    new_indices.append(idx.apply(func, self.actors[i][0]))
+            import ray
+            new_indices = ray.get([x.oid for x in new_indices])
 
             if old_blocks is not None:
                 cumulative_block_lengths = np.array(old_blocks.block_widths).cumsum()

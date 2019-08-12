@@ -365,10 +365,13 @@ class BaseFrameManager(object):
             result_blocks = []
             axis_part_class = self._column_partitions_class if not axis else self._row_partition_class
             actors = self.actors[0] if not axis else self.actors.T[0]
+            result_actors = []
             for i, part in enumerate(partitions):
                 actor = actors[i]
                 result_blocks.append(part.apply(preprocessed_map_func, actor=actor, num_splits=num_splits))
+                result_actors.append(actor)
             result_blocks = np.array(result_blocks)
+            actors = np.repeat([result_actors], len(result_blocks[0]), axis=0).T
         else:
             result_blocks = np.array(
                 [
@@ -380,9 +383,9 @@ class BaseFrameManager(object):
         # rows, so we need to transpose the returned 2D numpy array to return
         # the structure to the correct order.
         return (
-            self.__constructor__(result_blocks.T, actors=self.actors)
+            self.__constructor__(result_blocks.T, actors=actors.T)
             if not axis
-            else self.__constructor__(result_blocks, actors=self.actors)
+            else self.__constructor__(result_blocks, actors=actors)
         )
 
     def take(self, axis, n):
@@ -620,7 +623,7 @@ class BaseFrameManager(object):
             new_indices = []
             if len(self._partitions_cache.T):
                 for i, idx in enumerate(self._partitions_cache.T[0]):
-                    new_indices.append(idx.apply(func, self.actors.T[i][0]))
+                    new_indices.append(idx.apply(func, self.actors.T[0][i]))
             import ray
             new_indices = ray.get([x.oid for x in new_indices])
             # This is important because sometimes we have resized the data. The new
@@ -639,7 +642,7 @@ class BaseFrameManager(object):
             new_indices = []
             if len(self._partitions_cache):
                 for i, idx in enumerate(self._partitions_cache[0]):
-                    new_indices.append(idx.apply(func, self.actors[i][0]))
+                    new_indices.append(idx.apply(func, self.actors[0][i]))
             import ray
             new_indices = ray.get([x.oid for x in new_indices])
 
@@ -805,7 +808,7 @@ class BaseFrameManager(object):
             for k, v in groupby(all_partitions_and_idx, itemgetter(0))
         ]
 
-    def _apply_func_to_list_of_partitions(self, func, partitions, **kwargs):
+    def _apply_func_to_list_of_partitions(self, func, actor, partitions, **kwargs):
         """Applies a function to a list of remote partitions.
 
         Note: The main use for this is to preprocess the func.
@@ -980,66 +983,129 @@ class BaseFrameManager(object):
         if not axis:
             partitions_for_apply = self.column_partitions
             partitions_for_remaining = self.partitions.T
+            actors = self.actors[0]
         else:
             partitions_for_apply = self.row_partitions
             partitions_for_remaining = self.partitions
+            actors = self.actors.T[0]
         # We may have a command to perform different functions on different
         # columns at the same time. We attempt to handle this as efficiently as
         # possible here. Functions that use this in the dictionary format must
         # accept a keyword argument `func_dict`.
         if dict_indices is not None:
             if not keep_remaining:
-                result = np.array(
-                    [
-                        partitions_for_apply[i].apply(
+                # result = np.array(
+                #     [
+                #         partitions_for_apply[i].apply(
+                #             preprocessed_func,
+                #             func_dict={
+                #                 idx: dict_indices[idx] for idx in partitions_dict[i]
+                #             },
+                #         )
+                #         for i in partitions_dict
+                #     ]
+                # )
+                result = []
+                result_actors = []
+                for i in partitions_dict:
+                    actor = actors[i]
+                    result_blocks = partitions_for_apply[i].apply(
                             preprocessed_func,
+                            actor,
                             func_dict={
                                 idx: dict_indices[idx] for idx in partitions_dict[i]
-                            },
-                        )
-                        for i in partitions_dict
-                    ]
-                )
+                                },
+                            )
+                    result.append(result_blocks)
+                    result_actors.append([actor for _ in range(len(result_blocks))])
+                result = np.array(result)
+                result_actors = np.array(result_actors)
             else:
-                result = np.array(
-                    [
-                        partitions_for_remaining[i]
-                        if i not in partitions_dict
-                        else self._apply_func_to_list_of_partitions(
-                            preprocessed_func,
-                            partitions_for_apply[i],
-                            func_dict={
-                                idx: dict_indices[idx] for idx in partitions_dict[i]
-                            },
-                        )
-                        for i in range(len(partitions_for_apply))
-                    ]
-                )
+                # result = np.array(
+                #     [
+                #         partitions_for_remaining[i]
+                #         if i not in partitions_dict
+                #         else self._apply_func_to_list_of_partitions(
+                #             preprocessed_func,
+                #             partitions_for_apply[i],
+                #             func_dict={
+                #                 idx: dict_indices[idx] for idx in partitions_dict[i]
+                #             },
+                #         )
+                #         for i in range(len(partitions_for_apply))
+                #     ]
+                # )
+                result = []
+                result_actors = []
+                for i in range(len(partitions_for_apply)):
+                    if i not in partitions_dict:
+                        result.append(partitions_for_remaining[i])
+                    else:
+                        actor = actors[i]
+                        result_blocks = self._apply_func_to_list_of_partitions(
+                                func,
+                                actor,
+                                partittions_for_apply[i],
+                                func_dict={
+                                    idx: dict_indices[idx] for idx in partitions_dict[i]
+                                    },
+                                )
+                        result.append(result_blocks)
+                        result_actors.append([actor for _ in range(len(result_blocks))])
+                result = np.array(result)
+                result_actors = np.array(result_actors)
         else:
             if not keep_remaining:
                 # See notes in `apply_func_to_select_indices`
-                result = np.array(
-                    [
-                        partitions_for_apply[i].apply(
-                            preprocessed_func, internal_indices=partitions_dict[i]
-                        )
-                        for i in partitions_dict
-                    ]
-                )
+                # result = np.array(
+                #     [
+                #         partitions_for_apply[i].apply(
+                #             preprocessed_func, internal_indices=partitions_dict[i]
+                #         )
+                #         for i in partitions_dict
+                #     ]
+                # )
+                result = []
+                result_actors = []
+                for i in partitions_dict:
+                    actor = actors[i]
+                    result_blocks = partitions_for_apply[i].apply(
+                            preprocessed_func,
+                            actor,
+                            internal_indices=partitions_dict[i],
+                            )
+                    result.append(result_blocks)
+                    result_actors.append([actor for _ in range(len(result_blocks))])
+                result = np.array(result)
+                result_actors = np.array(result_actors)
             else:
                 # See notes in `apply_func_to_select_indices`
-                result = np.array(
-                    [
-                        partitions_for_remaining[i]
-                        if i not in partitions_dict
-                        else partitions_for_apply[i].apply(
-                            preprocessed_func, internal_indices=partitions_dict[i]
+                # result = np.array(
+                #     [
+                #         partitions_for_remaining[i]
+                #         if i not in partitions_dict
+                #         else partitions_for_apply[i].apply(
+                #             preprocessed_func, internal_indices=partitions_dict[i]
+                #         )
+                #         for i in range(len(partitions_for_remaining))
+                #     ]
+                # )
+                result = []
+                result_actors = []
+                for i in range(len(partitions_for_apply)):
+                    if i not in partitions_dict:
+                        result.append(partitions_for_remaining[i])
+                    else:
+                        actor = actors[i]
+                        result_blocks = partitions_for_apply[i].apply(
+                            preprocessed_func, actor, internal_indices=partitions_dict[i]
                         )
-                        for i in range(len(partitions_for_remaining))
-                    ]
-                )
+                        result.append(result_blocks)
+                        result_actors.append([actor for _ in range(len(result_blocks))])
+                result = np.array(result)
+                result_actors = np.array(result_actors)
         return (
-            self.__constructor__(result.T) if not axis else self.__constructor__(result)
+            self.__constructor__(result.T, result_actors.T) if not axis else self.__constructor__(result, result_actors)
         )
 
     def mask(self, row_indices=None, col_indices=None):
@@ -1495,8 +1561,10 @@ class BaseFrameManager(object):
             actors = self.actors if axis else self.actors.T
         rows = len(partitions)
         columns = new_block_length if new_block_length > 0 else len(lengths) if len(lengths) > 0 else len(partitions.T)
+        new_actors = []
         for row_idx in range(rows):
             axis_parts = []
+            row_actors=[]
             for col_idx in range(columns):
                 if len(lengths) > 0 and lengths[col_idx] == 0:
                     continue
@@ -1527,6 +1595,7 @@ class BaseFrameManager(object):
                     part_length = block_lengths[row_idx] if axis else lengths[col_idx]
                 if self.actors is not None:
                     actor = actors[row_idx][col_idx]
+                    row_actors.append(actor)
                     part = self._partition_class.shuffle(
                         actor,
                         axis,
@@ -1553,10 +1622,11 @@ class BaseFrameManager(object):
                     )
                 axis_parts.append(part)
             result.append(axis_parts)
+            new_actors.append(row_actors)
         return (
-            self.__constructor__(np.array(result), actors=self.actors, **metadata)
+            self.__constructor__(np.array(result), actors=np.array(new_actors), **metadata)
             if axis
-            else self.__constructor__(np.array(result).T, actors=self.actors, **metadata)
+            else self.__constructor__(np.array(result).T, actors=np.array(new_actors).T, **metadata)
         )
 
     def __getitem__(self, key):

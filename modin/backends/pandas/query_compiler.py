@@ -90,13 +90,11 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         index_obj = self.index if not axis else self.columns
         old_blocks = self.data if compute_diff else None
-        print("START GET INDICES")
         new_indices = data_object.get_indices(
             axis=axis,
             index_func=lambda df: pandas_index_extraction(df, axis),
             old_blocks=old_blocks,
         )
-        print("FINISH GET INDICES")
         return index_obj[new_indices] if compute_diff else new_indices
 
     def _validate_set_axis(self, new_labels, old_labels):

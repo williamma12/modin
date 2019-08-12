@@ -78,12 +78,12 @@ head_node:
 # For more documentation on available fields, see:
 # http://boto3.readthedocs.io/en/latest/reference/services/ec2.html#EC2.ServiceResource.create_instances
 worker_nodes:
-    InstanceType: m5.xlarge
+    InstanceType: m5.4xlarge
     ImageId: ami-09c2435df1137686f # Deep Learning AMI
 
     # Run workers on spot by default. Comment this out to use on-demand.
-    InstanceMarketOptions:
-        MarketType: spot
+    # InstanceMarketOptions:
+    #     MarketType: spot
         # Additional options can be found in the boto docs, e.g.
         #   SpotOptions:
         #       MaxPrice: MAX_HOURLY_PRICE
@@ -112,7 +112,6 @@ setup_commands:
     - echo 'export RAY_RESOURCES="{\"$RAY_ID\":$RAY_NUM_CPUS}"' >> ~/.bashrc
     - echo 'export MODIN_NUM_PER_CPU=1' >> ~/.bashrc
     - echo 'export MEMORY_STORE_SIZE=$(awk "/MemFree/ { printf \"%d \\n\", \$2*1024}" /proc/meminfo)' >> ~/.bashrc
-    - echo "$MEMORY_STORE_SIZE"
     - echo 'export TMPDIR="$(dirname $(mktemp tmp.XXXXXXXXXX -ut))"' >> ~/.bashrc
     # Consider uncommenting these if you also want to run apt-get commands during setup
     # - sudo pkill -9 apt-get || true

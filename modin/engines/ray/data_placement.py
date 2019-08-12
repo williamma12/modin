@@ -10,7 +10,7 @@ class NodeActor(object):
         return True
 
 
-cluster_resources = ray.global_state.cluster_resources()
+cluster_resources = ray.cluster_resources()
 nodes = [
     node
     for node in cluster_resources.keys()

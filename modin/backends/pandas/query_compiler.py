@@ -2744,7 +2744,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         def _map(df, other):
             return map_func(
                 df.groupby(by=other.squeeze(), axis=axis, **groupby_args), **map_args
-            ).reset_index(drop=False)
+            )#.reset_index(drop=False)
 
         if reduce_func is not None:
 

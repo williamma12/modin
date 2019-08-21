@@ -1,4 +1,5 @@
 import ray
+import numpy as np
 
 
 @ray.remote
@@ -27,4 +28,4 @@ for resource in nodes:
 
 def get_available_actors(n_nodes):
     n_actors = int(n_nodes * cluster_resources[nodes[0]])
-    return all_actors[:n_actors]
+    return np.random.permutation(all_actors[:n_actors])

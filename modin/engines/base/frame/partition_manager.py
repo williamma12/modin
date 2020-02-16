@@ -3,6 +3,7 @@ import pandas
 
 from modin.error_message import ErrorMessage
 from modin.data_management.utils import compute_chunksize
+import modin.backends.pandas.library as pandas_func
 
 
 class BaseFrameManager(object):
@@ -83,7 +84,7 @@ class BaseFrameManager(object):
         return cls.map_axis_partitions(axis, new_partitions, reduce_func)
 
     @classmethod
-    def map_partitions(cls, partitions, map_func):
+    def map_partitions(cls, partitions, partition_backends, map_func_args):
         """Applies `map_func` to every partition.
 
         Args:
@@ -92,13 +93,33 @@ class BaseFrameManager(object):
         Returns:
             A new BaseFrameManager object, the type of object that called this.
         """
-        preprocessed_map_func = cls.preprocess_func(map_func)
-        return np.array(
-            [
-                [part.apply(preprocessed_map_func) for part in row_of_parts]
-                for row_of_parts in partitions
-            ]
-        )
+        map_func, map_args, map_kwargs = map_func_args
+        result = []
+        for row_idx in range(partitions.shape[0]):
+            result_row = []
+            for col_idx in range(partitions.shape[1]):
+                part_backend = partition_backends[row_idx, col_idx]
+                part = partitions[row_idx, col_idx]
+
+                # Get function from backend.
+                if part_backend == "pandas":
+                    actual_func = getattr(pandas_func, map_func)
+                    func = lambda x: actual_func(x, *map_args, **map_kwargs)
+                else:
+                    raise ValueError("Bad backend name")
+
+                # Apply function.
+                result_row.append(part.apply(cls.preprocess_func(func)))
+            result.append(result_row)
+        return np.array(result)
+
+        # preprocessed_map_func = cls.preprocess_func(map_func)
+        # return np.array(
+        #     [
+        #         [part.apply(preprocessed_map_func) for part in row_of_parts]
+        #         for row_of_parts in partitions
+        #     ]
+        # )
 
     @classmethod
     def lazy_map_partitions(cls, partitions, map_func):

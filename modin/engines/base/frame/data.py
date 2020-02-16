@@ -42,6 +42,13 @@ class BasePandasFrame(object):
             dtypes: (optional) The data types for the dataframe.
         """
         self._partitions = partitions
+        temp = []
+        for col_idx in range(partitions.shape[0]):
+            temp_col = []
+            for row_idx in range(partitions.shape[1]):
+                temp_col.append("pandas")
+            temp.append(temp_col)
+        self._partition_backends = np.array(temp)
         self._index_cache = ensure_index(index)
         self._columns_cache = ensure_index(columns)
         if row_lengths is not None and len(self.index) > 0:
@@ -745,7 +752,7 @@ class BasePandasFrame(object):
         Returns:
             A new dataframe.
         """
-        new_partitions = self._frame_mgr_cls.map_partitions(self._partitions, func)
+        new_partitions = self._frame_mgr_cls.map_partitions(self._partitions, self._partition_backends, func)
         if dtypes == "copy":
             dtypes = self._dtypes
         elif dtypes is not None:

@@ -17,12 +17,13 @@ from modin.backends.pandas.parsers import (
 from modin.engines.ray.task_wrapper import RayTask
 from modin.engines.ray.pandas_on_ray.frame.partition import PandasOnRayFramePartition
 from modin.engines.ray.pandas_on_ray.frame.data import PandasOnRayFrame
+from modin.backends.query_compiler import GenericQueryCompiler
 
 
 class PandasOnRayIO(RayIO):
 
     frame_cls = PandasOnRayFrame
-    query_compiler_cls = PandasQueryCompiler
+    query_compiler_cls = GenericQueryCompiler
     build_args = dict(
         frame_partition_cls=PandasOnRayFramePartition,
         query_compiler_cls=PandasQueryCompiler,

@@ -43,11 +43,11 @@ class BasePandasFrame(object):
         """
         self._partitions = partitions
         temp = []
-        for col_idx in range(partitions.shape[0]):
-            temp_col = []
-            for row_idx in range(partitions.shape[1]):
-                temp_col.append("pandas")
-            temp.append(temp_col)
+        for row_idx in range(partitions.shape[0]):
+            temp_row = []
+            for col_idx in range(partitions.shape[1]):
+                temp_row.append("pandas")
+            temp.append(temp_row)
         self._partition_backends = np.array(temp)
         self._index_cache = ensure_index(index)
         self._columns_cache = ensure_index(columns)

@@ -104,11 +104,11 @@ class BaseFrameManager(object):
                 # Get function from backend.
                 if part_backend == "pandas":
                     actual_func = getattr(pandas_func, map_func)
-                    func = lambda x: actual_func(x, *map_args, **map_kwargs)
                 else:
                     raise ValueError("Bad backend name")
 
                 # Apply function.
+                func = lambda x: actual_func(x, *map_args, **map_kwargs)
                 result_row.append(part.apply(cls.preprocess_func(func)))
             result.append(result_row)
         return np.array(result)
@@ -318,17 +318,38 @@ class BaseFrameManager(object):
         return np.block([[block.to_numpy() for block in row] for row in partitions])
 
     @classmethod
-    def from_pandas(cls, df, return_dims=False):
+    def from_pandas(cls, df, partition_backends, return_dims=False):
         num_splits = cls._compute_num_partitions()
         put_func = cls._partition_class.put
         row_chunksize, col_chunksize = compute_chunksize(df, num_splits)
-        parts = [
-            [
-                put_func(df.iloc[i : i + row_chunksize, j : j + col_chunksize].copy())
-                for j in range(0, len(df.columns), col_chunksize)
-            ]
-            for i in range(0, len(df), row_chunksize)
-        ]
+
+        parts = []
+        row_idx = 0
+        for i in range(0, len(df), row_chunksize):
+            col_idx = 0
+            parts_row = []
+            for j in range(0, len(df.columns), col_chunksize):
+                raw_chunk = df.iloc[i : i + row_chunksize, j : j + col_chunksize].copy()
+                part_backend = partition_backends[row_idx, col_idx]
+
+                if part_backend == "pandas":
+                    part_backend = pandas_func
+                else:
+                    raise ValueError("Bad backend")
+
+                conversion_func = getattr(part_backend, "_conversion")
+                processed_chunk = conversion_func(raw_chunk)
+                parts_row.append(put_func(processed_chunk))
+                col_idx += 1
+            parts.append(parts_row)
+            row_idx += 1
+        # parts = [
+        #     [
+        #         put_func(df.iloc[i : i + row_chunksize, j : j + col_chunksize].copy())
+        #         for j in range(0, len(df.columns), col_chunksize)
+        #     ]
+        #     for i in range(0, len(df), row_chunksize)
+        # ]
         if not return_dims:
             return np.array(parts)
         else:

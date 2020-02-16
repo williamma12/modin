@@ -23,6 +23,7 @@ class BasePandasFrame(object):
     def __init__(
         self,
         partitions,
+        partition_backends,
         index,
         columns,
         row_lengths=None,
@@ -42,13 +43,7 @@ class BasePandasFrame(object):
             dtypes: (optional) The data types for the dataframe.
         """
         self._partitions = partitions
-        temp = []
-        for row_idx in range(partitions.shape[0]):
-            temp_row = []
-            for col_idx in range(partitions.shape[1]):
-                temp_row.append("pandas")
-            temp.append(temp_row)
-        self._partition_backends = np.array(temp)
+        self._partition_backends = partition_backends
         self._index_cache = ensure_index(index)
         self._columns_cache = ensure_index(columns)
         if row_lengths is not None and len(self.index) > 0:
@@ -1187,9 +1182,18 @@ class BasePandasFrame(object):
         new_index = df.index
         new_columns = df.columns
         new_dtypes = df.dtypes
-        new_frame, new_lengths, new_widths = cls._frame_mgr_cls.from_pandas(df, True)
+        temp = []
+        shape = (4, 2)
+        for row_idx in range(shape[0]):
+            temp_row = []
+            for col_idx in range(shape[1]):
+                temp_row.append("pandas")
+            temp.append(temp_row)
+        partition_backends = np.array(temp)
+        new_frame, new_lengths, new_widths = cls._frame_mgr_cls.from_pandas(df, partition_backends, True)
         return cls(
             new_frame,
+            partition_backends,
             new_index,
             new_columns,
             new_lengths,

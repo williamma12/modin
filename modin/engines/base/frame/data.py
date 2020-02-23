@@ -756,6 +756,7 @@ class BasePandasFrame(object):
             )
         return self.__constructor__(
             new_partitions,
+            self._partition_backends,
             self.index,
             self.columns,
             self._row_lengths,
@@ -1183,11 +1184,19 @@ class BasePandasFrame(object):
         new_columns = df.columns
         new_dtypes = df.dtypes
         temp = []
-        shape = (4, 2)
+        shape = (4, 4)
         for row_idx in range(shape[0]):
             temp_row = []
             for col_idx in range(shape[1]):
-                temp_row.append("pandas")
+                if (
+                        (col_idx == 0 and row_idx == 0) or 
+                        (col_idx == 3 and row_idx == 0) or 
+                        (col_idx == 0 and row_idx == 3) or 
+                        (col_idx == 3 and row_idx == 3)
+                    ):
+                    temp_row.append("cudf")
+                else:
+                    temp_row.append("pandas")
             temp.append(temp_row)
         partition_backends = np.array(temp)
         new_frame, new_lengths, new_widths = cls._frame_mgr_cls.from_pandas(df, partition_backends, True)
@@ -1299,6 +1308,7 @@ class BasePandasFrame(object):
         )
         return self.__constructor__(
             new_partitions,
+            self._partition_backends,
             self.index[:n],
             self.columns,
             new_row_lengths,
@@ -1324,6 +1334,7 @@ class BasePandasFrame(object):
         )
         return self.__constructor__(
             new_partitions,
+            self._partition_backends,
             self.index[-n:],
             self.columns,
             new_row_lengths,
@@ -1346,6 +1357,7 @@ class BasePandasFrame(object):
         )
         return self.__constructor__(
             new_partitions,
+            self._partition_backends,
             self.index,
             self.columns[:n],
             self._row_lengths,
@@ -1368,6 +1380,7 @@ class BasePandasFrame(object):
         )
         return self.__constructor__(
             new_partitions,
+            self._partition_backends,
             self.index,
             self.columns[-n:],
             self._row_lengths,

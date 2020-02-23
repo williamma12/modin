@@ -3,7 +3,8 @@ import pandas
 
 from modin.error_message import ErrorMessage
 from modin.data_management.utils import compute_chunksize
-import modin.backends.pandas.library as pandas_func
+import modin.backends.pandas.library as pandas_lib
+import modin.backends.cudf.library as cudf_lib
 
 
 class BaseFrameManager(object):
@@ -103,7 +104,9 @@ class BaseFrameManager(object):
 
                 # Get function from backend.
                 if part_backend == "pandas":
-                    actual_func = getattr(pandas_func, map_func)
+                    actual_func = getattr(pandas_lib, map_func)
+                elif part_backend == "cudf":
+                    actual_func = getattr(cudf_lib, map_func)
                 else:
                     raise ValueError("Bad backend name")
 
@@ -333,7 +336,9 @@ class BaseFrameManager(object):
                 part_backend = partition_backends[row_idx, col_idx]
 
                 if part_backend == "pandas":
-                    part_backend = pandas_func
+                    part_backend = pandas_lib
+                elif part_backend == "cudf":
+                    part_backend = cudf_lib
                 else:
                     raise ValueError("Bad backend")
 

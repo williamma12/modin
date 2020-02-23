@@ -1,5 +1,6 @@
 from modin.engines.base.io import BaseIO
 from modin.backends.pandas.query_compiler import PandasQueryCompiler
+from modin.backends.query_compiler import GenericQueryCompiler
 from modin.engines.dask.pandas_on_dask_futures.frame.data import PandasOnDaskFrame
 from modin.engines.dask.pandas_on_dask_futures.frame.partition import (
     PandasOnDaskFramePartition,
@@ -24,7 +25,7 @@ from modin.engines.dask.task_wrapper import DaskTask
 class PandasOnDaskIO(BaseIO):
 
     frame_cls = PandasOnDaskFrame
-    query_compiler_cls = PandasQueryCompiler
+    query_compiler_cls = GenericQueryCompiler
     build_args = dict(
         frame_cls=PandasOnDaskFrame,
         frame_partition_cls=PandasOnDaskFramePartition,

@@ -1391,3 +1391,33 @@ class PandasQueryCompiler(BaseQueryCompiler):
             item_to_distribute=broadcasted_items,
         )
         return self.__constructor__(new_modin_frame)
+
+    # Profiling functions.
+    def profiling(func_type):
+        def profiling_helper(df, sleep_time):
+            import time
+            add = True
+            print("{}_{}".format(df.columns[0], df.index[0]))
+            start = time.time()
+            while True:
+                end = time.time()
+                if end > start + sleep_time:
+                    break
+                if add:
+                    add = False
+                    df += 1
+                else:
+                    add = True
+                    df -= 1
+            if func_type == "map":
+                return df
+            elif func_type == "reduce":
+                return df.iloc[0]
+        return profiling_helper
+
+    partition_profiling = MapFunction.register(profiling("map"))
+    axis_profiling = MapFunction.register(profiling("map"))
+    reduce_profiling = ReductionFunction.register(profiling("reduce"))
+    map_reduce_profiling = MapReduceFunction.register(profiling("map"), profiling("reduce"))
+
+    # END profiling functions.

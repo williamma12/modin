@@ -2281,3 +2281,16 @@ class DataFrame(BasePandasDataset):
 
     def _to_pandas(self):
         return self._query_compiler.to_pandas()
+    
+    def partition_profiling(self, sleep_time):
+        return DataFrame(query_compiler=self._query_compiler.partition_profiling(sleep_time))
+    
+    def axis_profiling(self, sleep_time):
+        return DataFrame(query_compiler=self._query_compiler.axis_profiling(sleep_time))
+
+    def reduce_profiling(self, sleep_time):
+        return DataFrame(query_compiler=self._query_compiler.reduce_profiling(sleep_time))
+
+    def map_reduce_profiling(self, sleep_time):
+        return DataFrame(query_compiler=self._query_compiler.map_reduce_profiling(sleep_time))
+

@@ -1397,7 +1397,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         def profiling_helper(df, sleep_time):
             import time
             add = True
-            print("{}_{}".format(df.columns[0], df.index[0]))
+            # print("{}_{}".format(df.columns[0], df.index[0]))
             start = time.time()
             while True:
                 end = time.time()

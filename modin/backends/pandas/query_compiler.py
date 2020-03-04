@@ -1394,11 +1394,13 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
     # Profiling functions.
     def profiling(func_type):
-        def profiling_helper(df, sleep_time):
-            import time
+        import time
+        def profiling_helper(df, sleep_time, sleep_scaling_func):
             add = True
             # print("{}_{}".format(df.columns[0], df.index[0]))
             start = time.time()
+            size = df.memory_usage(deep=True, index=False).sum() / 2**20
+            sleep_time = sleep_time * sleep_scaling_func(size)
             while True:
                 end = time.time()
                 if end > start + sleep_time:

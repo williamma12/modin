@@ -2282,15 +2282,39 @@ class DataFrame(BasePandasDataset):
     def _to_pandas(self):
         return self._query_compiler.to_pandas()
     
-    def partition_profiling(self, sleep_time, sleep_scaling_func):
-        return DataFrame(query_compiler=self._query_compiler.partition_profiling(sleep_time, sleep_scaling_func))
+    def map_partition_profiling(self, sleep_time, sleep_scaling_func):
+        import time
+
+        return DataFrame(
+                query_compiler=self._query_compiler.map_partition_profiling(
+                    sleep_time, sleep_scaling_func, time.time()
+                    )
+                )
     
-    def axis_profiling(self, sleep_time, sleep_scaling_func):
-        return DataFrame(query_compiler=self._query_compiler.axis_profiling(sleep_time, sleep_scaling_func))
+    def map_axis_profiling(self, sleep_time, sleep_scaling_func):
+        import time
+
+        return DataFrame(
+                query_compiler=self._query_compiler.map_axis_profiling(
+                    sleep_time, sleep_scaling_func, time.time()
+                    )
+                )
 
     def reduce_profiling(self, sleep_time, sleep_scaling_func):
-        return DataFrame(query_compiler=self._query_compiler.reduce_profiling(sleep_time, sleep_scaling_func))
+        import time
+
+        return DataFrame(
+                query_compiler=self._query_compiler.reduce_profiling(
+                    sleep_time, sleep_scaling_func, time.time()
+                    )
+                )
 
     def map_reduce_profiling(self, sleep_time, sleep_scaling_func):
-        return DataFrame(query_compiler=self._query_compiler.map_reduce_profiling(sleep_time, sleep_scaling_func))
+        import time
+
+        return DataFrame(
+                query_compiler=self._query_compiler.map_reduce_profiling(
+                    sleep_time, sleep_scaling_func, time.time()
+                    )
+                )
 

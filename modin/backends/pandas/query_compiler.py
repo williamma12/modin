@@ -1395,7 +1395,8 @@ class PandasQueryCompiler(BaseQueryCompiler):
     # Profiling functions.
     def profiling(func_type):
         import time
-        def profiling_helper(df, sleep_time, sleep_scaling_func):
+        def profiling_helper(df, sleep_time, sleep_scaling_func, init_time):
+            print("DISPATCH TIME:{}".format(time.time() - init_time))
             add = True
             # print("{}_{}".format(df.columns[0], df.index[0]))
             start = time.time()
@@ -1417,8 +1418,8 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 return df.iloc[0]
         return profiling_helper
 
-    partition_profiling = MapFunction.register(profiling("map"))
-    axis_profiling = MapFunction.register(profiling("map"))
+    map_partition_profiling = MapFunction.register(profiling("map"))
+    map_axis_profiling = MapFunction.register(profiling("map"))
     reduce_profiling = ReductionFunction.register(profiling("reduce"))
     map_reduce_profiling = MapReduceFunction.register(profiling("map"), profiling("reduce"))
 

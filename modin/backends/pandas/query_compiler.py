@@ -1396,15 +1396,13 @@ class PandasQueryCompiler(BaseQueryCompiler):
     def profiling(func_type):
         import time
         def profiling_helper(df, sleep_time, sleep_scaling_func, init_time):
-            print("DISPATCH TIME:{}".format(time.time() - init_time))
+            print("{} DISPATCH TIME:{}".format(func_type, time.time()-init_time))
             add = True
-            # print("{}_{}".format(df.columns[0], df.index[0]))
             start = time.time()
             size = df.memory_usage(deep=True, index=False).sum() / 2**20
             sleep_time = sleep_time * sleep_scaling_func(size)
             while True:
-                end = time.time()
-                if end > start + sleep_time:
+                if time.time() > start + sleep_time:
                     break
                 if add:
                     add = False
@@ -1412,6 +1410,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 else:
                     add = True
                     df -= 1
+            print("{} FINISH TIME:{}".format(func_type, time.time()-init_time))
             if func_type == "map":
                 return df
             elif func_type == "reduce":
@@ -1420,7 +1419,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
     map_partition_profiling = MapFunction.register(profiling("map"))
     map_axis_profiling = MapFunction.register(profiling("map"))
-    reduce_profiling = ReductionFunction.register(profiling("reduce"))
-    map_reduce_profiling = MapReduceFunction.register(profiling("map"), profiling("reduce"))
+    reduce_profiling = ReductionFunction.register(profiling("reduce"), axis=0)
+    map_reduce_profiling = MapReduceFunction.register(profiling("map"), profiling("reduce"), axis=0)
 
     # END profiling functions.

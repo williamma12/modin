@@ -1412,6 +1412,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
                     df -= 1
             delimiter = "$$"
             bench = {
+                    "TYPE": func_type,
                     "SIZE": size,
                     "SLEEP TIME": sleep_time,
                     "DISPATCH TIME": start-init_time,

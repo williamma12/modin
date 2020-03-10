@@ -1396,13 +1396,13 @@ class PandasQueryCompiler(BaseQueryCompiler):
     def profiling(func_type):
         import time
         def profiling_helper(df, sleep_time, sleep_scaling_func, init_time):
-            print("{} DISPATCH TIME:{}".format(func_type, time.time()-init_time))
             add = True
             start = time.time()
             size = df.memory_usage(deep=True, index=False).sum() / 2**20
             sleep_time = sleep_time * sleep_scaling_func(size)
             while True:
-                if time.time() > start + sleep_time:
+                end = time.time()
+                if end > start + sleep_time:
                     break
                 if add:
                     add = False
@@ -1410,7 +1410,20 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 else:
                     add = True
                     df -= 1
-            print("{} FINISH TIME:{}".format(func_type, time.time()-init_time))
+            delimiter = "$$"
+            bench = {
+                    "SIZE": size,
+                    "SLEEP TIME": sleep_time,
+                    "DISPATCH TIME": start-init_time,
+                    "FINISH TIME": end-init_time,
+                    }
+            bench_string = delimiter.join(
+                    [
+                        "{}:{}{}".format(term, delimiter, val) 
+                        for term, val in bench.items()
+                        ]
+                    )
+            print(bench_string)
             if func_type == "map":
                 return df
             elif func_type == "reduce":

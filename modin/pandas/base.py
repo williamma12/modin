@@ -734,7 +734,7 @@ class BasePandasDataset(object):
         self._add_sibling(new_obj)
         return new_obj
 
-    def count(self, axis=0, level=None, numeric_only=False):
+    def count(self, axis=0, level=None, numeric_only=False, **kwargs):
         """Get the count of non-null objects in the DataFrame.
 
         Arguments:
@@ -760,7 +760,7 @@ class BasePandasDataset(object):
 
         return self._reduce_dimension(
             self._query_compiler.count(
-                axis=axis, level=level, numeric_only=numeric_only
+                axis=axis, level=level, numeric_only=numeric_only, **kwargs
             )
         )
 
@@ -831,7 +831,6 @@ class BasePandasDataset(object):
             The cumulative sum of the DataFrame.
         """
         axis = self._get_axis_number(axis) if axis is not None else 0
-        self._validate_dtypes(numeric_only=True)
         return self.__constructor__(
             query_compiler=self._query_compiler.cumsum(
                 axis=axis, skipna=skipna, **kwargs
@@ -1471,7 +1470,7 @@ class BasePandasDataset(object):
             query_compiler=self._query_compiler.isin(values=values)
         )
 
-    def isna(self):
+    def isna(self, **kwargs):
         """Fill a DataFrame with booleans for cells containing NA.
 
         Returns:
@@ -1480,7 +1479,7 @@ class BasePandasDataset(object):
             True: cell contains NA.
             False: otherwise.
         """
-        return self.__constructor__(query_compiler=self._query_compiler.isna())
+        return self.__constructor__(query_compiler=self._query_compiler.isna(**kwargs))
 
     isnull = isna
 
@@ -1775,7 +1774,7 @@ class BasePandasDataset(object):
 
     notnull = notna
 
-    def nunique(self, axis=0, dropna=True):
+    def nunique(self, axis=0, dropna=True, **kwargs):
         """Return Series with number of distinct
            observations over requested axis.
 
@@ -1788,7 +1787,7 @@ class BasePandasDataset(object):
         """
         axis = self._get_axis_number(axis) if axis is not None else 0
         return self._reduce_dimension(
-            self._query_compiler.nunique(axis=axis, dropna=dropna)
+            self._query_compiler.nunique(axis=axis, dropna=dropna, **kwargs)
         )
 
     def pct_change(self, periods=1, fill_method="pad", limit=None, freq=None, **kwargs):
@@ -2022,6 +2021,7 @@ class BasePandasDataset(object):
         fill_value=np.nan,
         limit=None,
         tolerance=None,
+        **kwargs,
     ):
         axis = self._get_axis_number(axis) if axis is not None else 0
         if (
@@ -2064,6 +2064,7 @@ class BasePandasDataset(object):
                     fill_value=fill_value,
                     limit=limit,
                     tolerance=tolerance,
+                    **kwargs,
                 )
         if new_query_compiler is None:
             new_query_compiler = self._query_compiler
@@ -2079,6 +2080,7 @@ class BasePandasDataset(object):
                     fill_value=fill_value,
                     limit=limit,
                     tolerance=tolerance,
+                    **kwargs,
                 )
         if final_query_compiler is None:
             final_query_compiler = new_query_compiler
@@ -2669,6 +2671,7 @@ class BasePandasDataset(object):
         inplace=False,
         kind="quicksort",
         na_position="last",
+        **kwargs,
     ):
         """Sorts by a column/row or list of columns/rows.
 
@@ -2698,7 +2701,7 @@ class BasePandasDataset(object):
                 kind=kind,
                 na_position=na_position,
             ).index
-            return self.reindex(index=new_index, copy=not inplace)
+            return self.reindex(index=new_index, copy=not inplace, **kwargs)
         else:
             broadcast_value_list = [
                 self[row :: len(self.index)]._to_pandas() for row in by
@@ -2715,7 +2718,7 @@ class BasePandasDataset(object):
                 kind=kind,
                 na_position=na_position,
             ).columns
-            return self.reindex(columns=new_columns, copy=not inplace)
+            return self.reindex(columns=new_columns, copy=not inplace, **kwargs)
 
     def std(
         self, axis=None, skipna=None, level=None, ddof=1, numeric_only=None, **kwargs

@@ -46,6 +46,40 @@ def _str_map(func_name):
     return str_op_builder
 
 
+def _profiling_wrapper(func, map_or_reduce):
+    import time
+
+    def profiling_helper(df, *args, init_time=None, **kwargs):
+        if init_time is None:
+            raise ValueError("Missing initialization time")
+
+        # Profile function.
+        start = time.time()
+        size = df.memory_usage(deep=True, index=False).sum() / 2**20
+        result = func(df, *args, **kwargs)
+        end = time.time()
+
+        # Print profiling results.
+        delimiter = "$$"
+        bench = {
+                "TYPE": map_or_reduce,
+                "SIZE": size,
+                "DISPATCH TIME": start-init_time,
+                "FINISH TIME": end-init_time,
+                }
+        bench_string = delimiter.join(
+                [
+                    "{}:{}{}".format(term, delimiter, val) 
+                    for term, val in bench.items()
+                    ]
+                )
+        print(bench_string)
+
+        return result
+
+    return profiling_helper
+
+
 class PandasQueryCompiler(BaseQueryCompiler):
     """This class implements the logic necessary for operating on partitions
         with a Pandas backend. This logic is specific to Pandas."""
@@ -311,7 +345,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
         new_columns = labels if axis else self.columns
         new_modin_frame = self._modin_frame._apply_full_axis(
             axis,
-            lambda df: df.reindex(labels=labels, axis=axis, **kwargs),
+            lambda df: _profiling_wrapper(pandas.DataFrame.reindex, "map")(df, labels=labels, axis=axis, **kwargs),
             new_index=new_index,
             new_columns=new_columns,
         )
@@ -363,10 +397,16 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
     # MapReduce operations
 
-    count = MapReduceFunction.register(pandas.DataFrame.count, pandas.DataFrame.sum)
+    count = MapReduceFunction.register(
+            _profiling_wrapper(pandas.DataFrame.count, "map"), 
+            _profiling_wrapper(pandas.DataFrame.sum, "reduce")
+            )
     max = MapReduceFunction.register(pandas.DataFrame.max, pandas.DataFrame.max)
     min = MapReduceFunction.register(pandas.DataFrame.min, pandas.DataFrame.min)
-    sum = MapReduceFunction.register(pandas.DataFrame.sum, pandas.DataFrame.sum)
+    sum = MapReduceFunction.register(
+            _profiling_wrapper(pandas.DataFrame.sum, "map"), 
+            _profiling_wrapper(pandas.DataFrame.sum, "reduce")
+            )
     prod = MapReduceFunction.register(pandas.DataFrame.prod, pandas.DataFrame.prod)
     any = MapReduceFunction.register(pandas.DataFrame.any, pandas.DataFrame.any)
     all = MapReduceFunction.register(pandas.DataFrame.all, pandas.DataFrame.all)
@@ -382,13 +422,13 @@ class PandasQueryCompiler(BaseQueryCompiler):
     idxmax = ReductionFunction.register(pandas.DataFrame.idxmax)
     idxmin = ReductionFunction.register(pandas.DataFrame.idxmin)
     median = ReductionFunction.register(pandas.DataFrame.median)
-    nunique = ReductionFunction.register(pandas.DataFrame.nunique)
+    nunique = ReductionFunction.register(_profiling_wrapper(pandas.DataFrame.nunique, "reduce"))
     skew = ReductionFunction.register(pandas.DataFrame.skew)
     std = ReductionFunction.register(pandas.DataFrame.std)
     var = ReductionFunction.register(pandas.DataFrame.var)
     sum_min_count = ReductionFunction.register(pandas.DataFrame.sum)
     prod_min_count = ReductionFunction.register(pandas.DataFrame.prod)
-    mean = ReductionFunction.register(pandas.DataFrame.mean)
+    mean = ReductionFunction.register(_profiling_wrapper(pandas.DataFrame.mean, "reduce"))
     quantile_for_single_value = ReductionFunction.register(pandas.DataFrame.quantile)
 
     # END Reduction operations
@@ -399,10 +439,10 @@ class PandasQueryCompiler(BaseQueryCompiler):
     applymap = MapFunction.register(pandas.DataFrame.applymap)
     invert = MapFunction.register(pandas.DataFrame.__invert__)
     isin = MapFunction.register(pandas.DataFrame.isin, dtypes=np.bool)
-    isna = MapFunction.register(pandas.DataFrame.isna, dtypes=np.bool)
+    isna = MapFunction.register(_profiling_wrapper(pandas.DataFrame.isna, "map"), dtypes=np.bool)
     negative = MapFunction.register(pandas.DataFrame.__neg__)
     notna = MapFunction.register(pandas.DataFrame.notna, dtypes=np.bool)
-    round = MapFunction.register(pandas.DataFrame.round)
+    round = MapFunction.register(_profiling_wrapper(pandas.DataFrame.round, "map"))
 
     # END Map partitions operations
 
@@ -563,7 +603,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
     cummax = FoldFunction.register(pandas.DataFrame.cummax)
     cummin = FoldFunction.register(pandas.DataFrame.cummin)
-    cumsum = FoldFunction.register(pandas.DataFrame.cumsum)
+    cumsum = FoldFunction.register(_profiling_wrapper(pandas.DataFrame.cumsum, "map"))
     cumprod = FoldFunction.register(pandas.DataFrame.cumprod)
     diff = FoldFunction.register(pandas.DataFrame.diff)
 

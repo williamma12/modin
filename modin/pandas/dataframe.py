@@ -2282,7 +2282,7 @@ class DataFrame(BasePandasDataset):
     def _to_pandas(self):
         return self._query_compiler.to_pandas()
     
-    def map_partition_profiling(self, sleep_time, sleep_scaling_func):
+    def map_partition_profiling(self, sleep_time, sleep_scaling_func, axis=0):
         import time
 
         return DataFrame(
@@ -2291,7 +2291,7 @@ class DataFrame(BasePandasDataset):
                     )
                 )
     
-    def map_axis_profiling(self, sleep_time, sleep_scaling_func):
+    def map_axis_profiling(self, sleep_time, sleep_scaling_func, axis=0):
         import time
 
         return DataFrame(
@@ -2300,7 +2300,7 @@ class DataFrame(BasePandasDataset):
                     )
                 )
 
-    def reduce_profiling(self, sleep_time, sleep_scaling_func):
+    def reduce_profiling(self, sleep_time, sleep_scaling_func, axis=0):
         import time
 
         return DataFrame(
@@ -2309,7 +2309,7 @@ class DataFrame(BasePandasDataset):
                     )
                 )
 
-    def map_reduce_profiling(self, sleep_time, sleep_scaling_func):
+    def map_reduce_profiling(self, sleep_time, sleep_scaling_func, axis=0):
         import time
 
         return DataFrame(

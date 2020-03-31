@@ -1472,8 +1472,8 @@ class PandasQueryCompiler(BaseQueryCompiler):
         return profiling_helper
 
     map_partition_profiling = MapFunction.register(profiling("map"))
-    map_axis_profiling = FoldFunction.register(profiling("map"), axis=0)
-    reduce_profiling = ReductionFunction.register(profiling("reduce"), axis=0)
-    map_reduce_profiling = MapReduceFunction.register(profiling("map"), profiling("reduce"), axis=0)
+    map_axis_profiling = FoldFunction.register(profiling("map"))
+    reduce_profiling = ReductionFunction.register(profiling("reduce"))
+    map_reduce_profiling = MapReduceFunction.register(profiling("map"), profiling("reduce"))
 
     # END profiling functions.

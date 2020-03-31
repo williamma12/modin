@@ -1213,14 +1213,14 @@ class BasePandasFrame(object):
         """
         return self._frame_mgr_cls.to_numpy(self._partitions)
 
-    def transpose(self):
+    def transpose(self, *args, profiling_wrapper, **kwargs):
         """Transpose the index and columns of this dataframe.
 
         Returns:
             A new dataframe.
         """
         new_partitions = self._frame_mgr_cls.lazy_map_partitions(
-            self._partitions, lambda df: df.T
+            self._partitions, lambda df: profiling_wrapper(pandas.DataFrame.transpose, "map")(df, *args, **kwargs)
         ).T
         new_dtypes = pandas.Series(
             np.full(len(self.index), find_common_type(self.dtypes.values)),

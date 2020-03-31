@@ -391,7 +391,11 @@ class PandasQueryCompiler(BaseQueryCompiler):
             Transposed new QueryCompiler.
         """
         # Switch the index and columns and transpose the data within the blocks.
-        return self.__constructor__(self._modin_frame.transpose())
+        return self.__constructor__(self._modin_frame.transpose(
+            *args,
+            profiling_wrapper=_profiling_wrapper, 
+            **kwargs,
+            ))
 
     # END Transpose
 

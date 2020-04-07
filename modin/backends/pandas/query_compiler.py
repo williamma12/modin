@@ -17,6 +17,9 @@ from modin.data_management.functions import (
 )
 
 
+COUNTER = 0
+
+
 def _get_axis(axis):
     if axis == 0:
         return lambda self: self._modin_frame.index
@@ -50,6 +53,8 @@ def _profiling_wrapper(func, map_or_reduce):
     import time
 
     def profiling_helper(df, *args, init_time=None, **kwargs):
+        func_name = func.__name__ + str(np.random.random())
+
         if init_time is None:
             raise ValueError("Missing initialization time")
 
@@ -62,6 +67,7 @@ def _profiling_wrapper(func, map_or_reduce):
         # Print profiling results.
         delimiter = "$$"
         bench = {
+                "FUNCTION": func_name,
                 "TYPE": map_or_reduce,
                 "SIZE": size,
                 "DISPATCH TIME": start-init_time,
@@ -1437,9 +1443,13 @@ class PandasQueryCompiler(BaseQueryCompiler):
         return self.__constructor__(new_modin_frame)
 
     # Profiling functions.
-    def profiling(func_type):
+    def profiling(func_name, func_type):
         import time
+
         def profiling_helper(df, sleep_time, sleep_scaling_func, init_time):
+            nonlocal func_name
+            func_name = func_name + str(np.random.random())
+
             add = True
             start = time.time()
             size = df.memory_usage(deep=True, index=False).sum() / 2**20
@@ -1456,6 +1466,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
                     df -= 1
             delimiter = "$$"
             bench = {
+                    "FUNCTION NAME": func_name,
                     "TYPE": func_type,
                     "SIZE": size,
                     "SLEEP TIME": sleep_time,
@@ -1475,9 +1486,12 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 return df.iloc[0]
         return profiling_helper
 
-    map_partition_profiling = MapFunction.register(profiling("map"))
-    map_axis_profiling = FoldFunction.register(profiling("map"))
-    reduce_profiling = ReductionFunction.register(profiling("reduce"))
-    map_reduce_profiling = MapReduceFunction.register(profiling("map"), profiling("reduce"))
+    map_partition_profiling = MapFunction.register(profiling("map_partition_profiling", "map"))
+    map_axis_profiling = FoldFunction.register(profiling("map_axis_profiling", "map"))
+    reduce_profiling = ReductionFunction.register(profiling("reduce_profiling", "reduce"))
+    map_reduce_profiling = MapReduceFunction.register(
+            profiling("map_reduce_profiling", "map"), 
+            profiling("map_reduce_profiling", "reduce")
+            )
 
     # END profiling functions.

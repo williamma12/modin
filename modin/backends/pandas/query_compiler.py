@@ -53,7 +53,7 @@ def _profiling_wrapper(func, map_or_reduce):
     import time
 
     def profiling_helper(df, *args, init_time=None, **kwargs):
-        func_name = func.__name__ + str(np.random.random())
+        func_name = func.__name__ + str(init_time)
 
         if init_time is None:
             raise ValueError("Missing initialization time")
@@ -1448,7 +1448,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
 
         def profiling_helper(df, sleep_time, sleep_scaling_func, init_time):
             nonlocal func_name
-            func_name = func_name + str(np.random.random())
+            func_name = func_name + str(init_time)
 
             add = True
             start = time.time()

@@ -1482,7 +1482,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
             if func_type == "map":
                 return df
             elif func_type == "reduce":
-                return df.iloc[0]
+                return df.iloc[:, 0]
         return profiling_helper
 
     map_partition_profiling = MapFunction.register(profiling("map_partition_profiling", "map"))

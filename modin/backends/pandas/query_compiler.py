@@ -1457,12 +1457,12 @@ class PandasQueryCompiler(BaseQueryCompiler):
                 end = time.time()
                 if end > start + sleep_time:
                     break
-                if add:
-                    add = False
-                    df += 1
-                else:
-                    add = True
-                    df -= 1
+                # if add:
+                #     add = False
+                #     df += 1
+                # else:
+                #     add = True
+                #     df -= 1
             delimiter = "$$"
             bench = {
                     "FUNCTION NAME": func_name,

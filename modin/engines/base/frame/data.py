@@ -61,7 +61,7 @@ class BasePandasFrame(object):
             )
         self._column_widths_cache = column_widths
         self._dtypes = dtypes
-        self._filter_empties()
+        # self._filter_empties()
 
     @property
     def _row_lengths(self):

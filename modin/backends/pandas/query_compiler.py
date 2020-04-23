@@ -60,7 +60,7 @@ def _profiling_wrapper(func, map_or_reduce):
 
         # Profile function.
         start = time.time()
-        size = df.memory_usage(deep=True, index=False).sum() / 2**20
+        # size = df.memory_usage(deep=True, index=False).sum() / 2**20
         result = func(df, *args, **kwargs)
         end = time.time()
 
@@ -69,7 +69,7 @@ def _profiling_wrapper(func, map_or_reduce):
         bench = {
                 "FUNCTION": func_name,
                 "TYPE": map_or_reduce,
-                "SIZE": size,
+                # "SIZE": size,
                 "DISPATCH TIME": start-init_time,
                 "FINISH TIME": end-init_time,
                 }
@@ -1450,8 +1450,8 @@ class PandasQueryCompiler(BaseQueryCompiler):
             func_name = "{}%%{}".format(name, str(init_time))
 
             add = True
-            start = time.time()
             size = df.memory_usage(deep=True, index=False).sum() / 2**20
+            start = time.time()
             sleep_time = sleep_time * sleep_scaling_func(size)
             while True:
                 end = time.time()

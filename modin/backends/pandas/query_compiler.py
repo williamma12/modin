@@ -1450,8 +1450,9 @@ class PandasQueryCompiler(BaseQueryCompiler):
             func_name = "{}%%{}".format(name, str(init_time))
 
             add = True
-            size = df.memory_usage(deep=True, index=False).sum() / 2**20
             start = time.time()
+            size = df.memory_usage(deep=True, index=False).sum() / 2**20
+            got_memory_time = time.time()
             sleep_time = sleep_time * sleep_scaling_func(size)
             while True:
                 end = time.time()
@@ -1470,7 +1471,7 @@ class PandasQueryCompiler(BaseQueryCompiler):
                     "SIZE": size,
                     "SLEEP TIME": sleep_time,
                     "DISPATCH TIME": start-init_time,
-                    "FINISH TIME": end-init_time,
+                    "FINISH TIME": end-init_time-(got_memory_time-start),
                     }
             bench_string = delimiter.join(
                     [
